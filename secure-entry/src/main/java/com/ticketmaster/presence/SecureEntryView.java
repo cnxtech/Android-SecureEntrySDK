@@ -40,7 +40,6 @@ import android.text.TextPaint;
 import android.text.TextUtils;
 import android.util.AttributeSet;
 import android.util.Base64;
-import android.util.Log;
 import android.view.View;
 import android.view.animation.AccelerateDecelerateInterpolator;
 import android.view.animation.Interpolator;
@@ -161,7 +160,6 @@ public final class SecureEntryView extends View implements EntryView {
 
     @Override
     public void setToken(String token) {
-        Log.d(TAG, "setToken() called with: token = [" + token + "]");
         mStateMessage = getResources().getString(R.string.loading);
         mRetryCount = 3;
         decodeToken(token);
@@ -173,7 +171,6 @@ public final class SecureEntryView extends View implements EntryView {
 
     @Override
     public void setBrandingColor(@ColorInt int brandingColor) {
-        Log.d(TAG, "setBrandingColor() called with: brandingColor = [" + brandingColor + "]");
         mAnimationBackgroundPaint.setColor(brandingColor);
         mAnimationBackgroundPaint.setAlpha(70);
         mAnimationForegroundPaint.setColor(brandingColor);
@@ -183,7 +180,6 @@ public final class SecureEntryView extends View implements EntryView {
     @Override
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
-        Log.d(TAG, "onAttachedToWindow() called");
 
         // setup the threading mechanism
         mHandlerThread.start();
@@ -194,7 +190,6 @@ public final class SecureEntryView extends View implements EntryView {
     @Override
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
-        Log.d(TAG, "onDetachedFromWindow() called");
 
         // clean up any threading
         mHandlerThread.quit();
@@ -232,7 +227,6 @@ public final class SecureEntryView extends View implements EntryView {
 
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-        Log.d(TAG, "onMeasure() called with: widthMeasureSpec = [" + widthMeasureSpec + "], heightMeasureSpec = [" + heightMeasureSpec + "]");
 
         final int specMode = MeasureSpec.getMode(widthMeasureSpec);
         final int specSize = MeasureSpec.getSize(widthMeasureSpec);
@@ -303,7 +297,6 @@ public final class SecureEntryView extends View implements EntryView {
     }
 
     private void displayTicket() {
-        Log.d(TAG, "displayTicket() called");
 
         if (TextUtils.isEmpty(mEntryData.getToken())) {
             mMessageToEncode = mEntryData.getBarcode();
@@ -353,7 +346,6 @@ public final class SecureEntryView extends View implements EntryView {
     }
 
     private void setupWriter() {
-        Log.d(TAG, "setupWriter() called");
 
         if (!TextUtils.isEmpty(mEntryData.getToken())) {
             mWriter = new PDF417Writer();
@@ -387,7 +379,6 @@ public final class SecureEntryView extends View implements EntryView {
                 mEntryData = new EntryData(barcode);
             }
         } catch (JSONException e) {
-            Log.d(TAG, String.format(Locale.getDefault(), "Invalid token: %s", e.getLocalizedMessage()));
             mStateMessage = getResources().getString(R.string.error_invalid_token);
         }
     }
