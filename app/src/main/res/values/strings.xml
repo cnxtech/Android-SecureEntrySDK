@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+   ~ Copyright 2018 Ticketmaster
+   ~
+   ~ Licensed under the Apache License, Version 2.0 (the "License");
+   ~ you may not use this file except in compliance with the License.
+   ~ You may obtain a copy of the License at
+   ~
+   ~     http://www.apache.org/licenses/LICENSE-2.0
+   ~
+   ~ Unless required by applicable law or agreed to in writing, software
+   ~ distributed under the License is distributed on an "AS IS" BASIS,
+   ~ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   ~ See the License for the specific language governing permissions and
+   ~ limitations under the License.
+-->
+<resources>
+    <string name="app_name">SecureEntryAndroid</string>
+    <string name="secure_entry_welcome">Welcome to the SecureEntrySDK sample application. You can render tickets using this SecureEntryView in your application.</string>
+    <string name="static_normal">Static</string>
+    <string name="static_sized">Static (sized)</string>
+    <string name="static_full_width">Static (full-width)</string>
+    <string name="static_no_token">Static (no token)</string>
+    <string name="static_bad_token">Static (invalid token)</string>
+
+    <string name="rotating_normal">Rotating</string>
+    <string name="rotating_sized">Rotating (sized)</string>
+    <string name="rotating_full_width">Rotating (full-width)</string>
+    <string name="rotating_no_token">Rotating (no token)</string>
+    <string name="rotating_bad_token">Rotating (invalid token)</string>
+    <string name="information">Information</string>
+    <string name="branding_color">Branding Color</string>
+
+    <string-array name="titles">
+        <item >Rotating</item>
+        <item >Static</item>
+    </string-array>
+
+    <string-array name="colors">
+        <item>Red</item>
+        <item>Pink</item>
+        <item>Purple</item>
+        <item>Deep Purple</item>
+        <item>Indigo</item>
+        <item>Blue</item>
+        <item>Light Blue</item>
+        <item>Cyan</item>
+        <item>Teal</item>
+        <item>Green</item>
+        <item>Light Green</item>
+        <item>Lime</item>
+        <item>Yellow</item>
+        <item>Amber</item>
+        <item>Orange</item>
+        <item>Deep Orange</item>
+        <item>Brown</item>
+        <item>Grey</item>
+        <item>Blue grey</item>
+    </string-array>
+</resources>
