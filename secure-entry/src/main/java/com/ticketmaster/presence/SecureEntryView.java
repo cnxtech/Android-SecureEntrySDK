@@ -29,6 +29,8 @@ import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.graphics.RectF;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Looper;
@@ -60,6 +62,10 @@ import org.json.JSONObject;
 import java.nio.ByteBuffer;
 import java.util.Date;
 import java.util.Locale;
+
+/**
+ * View displaying a rotating PDF417 or static PDF417 ticket.
+ */
 
 public final class SecureEntryView extends View implements EntryView {
 
@@ -99,8 +105,6 @@ public final class SecureEntryView extends View implements EntryView {
     private Paint mViewPaint;
     private Rect mDstRect;
 
-    private float mStartTextX;
-    private float mStartTextY;
     private TextPaint mTextPaint;
 
     private Paint mAnimationBackgroundPaint;
@@ -109,6 +113,7 @@ public final class SecureEntryView extends View implements EntryView {
     private AnimationRectF mAnimationForegroundRect;
 
     private boolean mFlipped;
+    private int mRetryCount = 3;
 
     public SecureEntryView(Context context) {
         this(context, null);
@@ -128,7 +133,7 @@ public final class SecureEntryView extends View implements EntryView {
         mViewPaint.setColor(Color.WHITE);
 
         mTextPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
-        mTextPaint.setTextSize(TEXT_SIZE * (int) getResources().getDisplayMetrics().density);
+        mTextPaint.setTextSize(getTextSize());
         mTextPaint.setColor(Color.BLACK);
 
         mStateMessage = context.getString(R.string.error_no_token);
@@ -137,8 +142,8 @@ public final class SecureEntryView extends View implements EntryView {
         mAnimationForegroundPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
         mDstRect = new Rect();
-        mAnimationBackgroundRect = new AnimationRectF(getPaddingLeft() + getDefaultPadding(), 0, getBackgroundBarWidth(), getHeight());
-        mAnimationForegroundRect = new AnimationRectF(0, 0, getForegroundBarWidth(), getHeight());
+        mAnimationBackgroundRect = new AnimationRectF();
+        mAnimationForegroundRect = new AnimationRectF();
 
         if (attrs != null) {
             TypedArray typedArray = context
@@ -158,6 +163,7 @@ public final class SecureEntryView extends View implements EntryView {
     public void setToken(String token) {
         Log.d(TAG, "setToken() called with: token = [" + token + "]");
         mStateMessage = getResources().getString(R.string.loading);
+        mRetryCount = 3;
         decodeToken(token);
         if (mEntryData != null) {
             setupWriter();
@@ -211,16 +217,16 @@ public final class SecureEntryView extends View implements EntryView {
                 canvas.drawRect(mAnimationBackgroundRect, mAnimationBackgroundPaint);
                 canvas.drawRect(mAnimationForegroundRect, mAnimationForegroundPaint);
             } else {
-                canvas.drawRect(mDstRect, mViewPaint);
-                mStartTextX = (getWidth() / 2) - (mTextPaint.measureText(mStateMessage) / 2);
-                mStartTextY = (getHeight() / 2) - ((mTextPaint.ascent() + mTextPaint.descent()) / 2);
-                canvas.drawText(mStateMessage, mStartTextX, mStartTextY, mTextPaint);
+                canvas.drawColor(Color.WHITE);
+                float startTextX = (getWidth() / 2) - (mTextPaint.measureText(mStateMessage) / 2);
+                float startTextY = (getHeight() / 2) - ((mTextPaint.ascent() + mTextPaint.descent()) / 2);
+                canvas.drawText(mStateMessage, startTextX, startTextY, mTextPaint);
             }
         } else {
-            canvas.drawRect(mDstRect, mViewPaint);
-            mStartTextX = (getWidth() / 2) - (mTextPaint.measureText(mStateMessage) / 2);
-            mStartTextY = (getHeight() / 2) - ((mTextPaint.ascent() + mTextPaint.descent()) / 2);
-            canvas.drawText(mStateMessage, mStartTextX, mStartTextY, mTextPaint);
+            canvas.drawColor(Color.WHITE);
+            float startTextX = (getWidth() / 2) - (mTextPaint.measureText(mStateMessage) / 2);
+            float startTextY = (getHeight() / 2) - ((mTextPaint.ascent() + mTextPaint.descent()) / 2);
+            canvas.drawText(mStateMessage, startTextX, startTextY, mTextPaint);
         }
     }
 
@@ -236,7 +242,7 @@ public final class SecureEntryView extends View implements EntryView {
                 if (specSize < mBitmapWidth) {
                     result = specSize | MEASURED_STATE_TOO_SMALL;
                 } else {
-                    result = mBitmapWidth + (getPaddingLeft() + getPaddingRight());
+                    result = mBitmapWidth + getPaddingLeft() + getPaddingRight();
                 }
                 break;
             case MeasureSpec.EXACTLY:
@@ -247,33 +253,31 @@ public final class SecureEntryView extends View implements EntryView {
                 result = mBitmapWidth;
         }
 
-        if(mEntryData != null) {
+        if (mEntryData != null) {
             // Height will need to be based on aspect ratio
             float tempHeight = (float) result * mAspectRatio;
             int height = (int) tempHeight;
             setRectDimensions(result, height);
             setMeasuredDimension(result, height);
-        }else{
+        } else {
             setErrorRectSize(result);
         }
     }
 
-    private void setErrorRectSize(int width){
+    private void setErrorRectSize(int width) {
+
         // error needs to at least fit bounds
-        float textWidth = Math.max(mTextPaint.measureText(mStateMessage), width) + (getPaddingLeft() + getPaddingRight());;
+        float textWidth = mTextPaint.measureText(mStateMessage);
         float textHeight = mTextPaint.getTextSize() * 2;
 
-        textWidth += getPaddingLeft() + getPaddingRight();
+        int actualWidth = (int) textWidth + getPaddingLeft() + getPaddingRight();
+        int actualHeight = (int) textHeight + getPaddingTop() + getPaddingBottom();
 
-        mDstRect.top = getPaddingTop();
-        mDstRect.left = getPaddingLeft();
-        mDstRect.right = (int) textWidth - getPaddingRight();
+        if (width > actualWidth) {
+            actualWidth = width;
+        }
 
-        int height = (int) textHeight + getPaddingTop() + getPaddingBottom() + (getDefaultPadding() * 2);
-
-        mDstRect.bottom = height - getPaddingBottom();
-
-        setMeasuredDimension((int) textWidth, height);
+        setMeasuredDimension(actualWidth, actualHeight);
     }
 
     private void setRectDimensions(int width, int height) {
@@ -310,21 +314,11 @@ public final class SecureEntryView extends View implements EntryView {
             try {
                 now = Clock.getInstance(getContext()).now();
             } catch (Exception ex) {
-                now = new Date(System.currentTimeMillis());
+                now = null;
             }
 
             if (now == null) {
-
-                Clock.getInstance(getContext()).sync(NTPHost.NTP_POOL_PROJECT, new Clock.Callback() {
-                    @Override
-                    public void onComplete(long offset, Date now) {
-                        Log.d("Clock", "onComplete() called with: offset = [" + offset + "], now = [" + now + "]");
-
-                        mUiHandler.post(moveBackgroundRightRunnable);
-                        mUiHandler.post(moveForegroundRightRunnable);
-                        mWorkerHandler.post(changeBitmapRunnable);
-                    }
-                });
+                syncTimeAndShowTicket(isOnline());
             } else {
                 mUiHandler.post(moveBackgroundRightRunnable);
                 mUiHandler.post(moveForegroundRightRunnable);
@@ -333,20 +327,44 @@ public final class SecureEntryView extends View implements EntryView {
         }
     }
 
+    private void syncTimeAndShowTicket(boolean isOnline) {
+        if (isOnline) {
+            Clock.getInstance(getContext()).sync(NTPHost.NTP_POOL_PROJECT, new Clock.Callback() {
+                @Override
+                public void onComplete(long offset, Date now) {
+
+                    mUiHandler.post(moveBackgroundRightRunnable);
+                    mUiHandler.post(moveForegroundRightRunnable);
+                    mWorkerHandler.post(changeBitmapRunnable);
+                }
+
+                @Override
+                public void onError() {
+                    if (mRetryCount != 0) {
+                        mRetryCount--;
+                        syncTimeAndShowTicket(isOnline());
+                    }
+                }
+            });
+        } else {
+            mStateMessage = getResources().getString(R.string.network_error);
+            postInvalidate();
+        }
+    }
+
     private void setupWriter() {
         Log.d(TAG, "setupWriter() called");
 
         if (!TextUtils.isEmpty(mEntryData.getToken())) {
             mWriter = new PDF417Writer();
-            mBitmapWidth = PDF417_MIN_WIDTH * (int) (getResources().getDisplayMetrics().density);
-            mBitmapHeight = PDF417_MIN_HEIGHT * (int) (getResources().getDisplayMetrics().density);
+            mBitmapWidth = PDF417_MIN_WIDTH * (int) getResources().getDisplayMetrics().density;
+            mBitmapHeight = PDF417_MIN_HEIGHT * (int) getResources().getDisplayMetrics().density;
             mAspectRatio = (float) mBitmapHeight / (float) mBitmapWidth;
             mBarcodeFormat = BarcodeFormat.PDF_417;
         } else {
             mWriter = new QRCodeWriter();
-            mBitmapWidth = QR_CODE_MIN_WIDTH * (int) (getResources().getDisplayMetrics().density);
-            ;
-            mBitmapHeight = QR_CODE_MIN_WIDTH * (int) (getResources().getDisplayMetrics().density);
+            mBitmapWidth = QR_CODE_MIN_WIDTH * (int) getResources().getDisplayMetrics().density;
+            mBitmapHeight = QR_CODE_MIN_WIDTH * (int) getResources().getDisplayMetrics().density;
             mAspectRatio = (float) mBitmapWidth / (float) mBitmapHeight;
             mBarcodeFormat = BarcodeFormat.QR_CODE;
         }
@@ -376,7 +394,6 @@ public final class SecureEntryView extends View implements EntryView {
 
     private void getNewOTP(Date now) {
 
-        // TODO: this needs to be able to handle <secureToken::customerTOTP::eventTOTP>
         String otpMessage = mEntryData.getToken();
         String keyToUse = mEntryData.getCustomerKey();
 
@@ -443,15 +460,19 @@ public final class SecureEntryView extends View implements EntryView {
     }
 
     private int getBackgroundBarWidth() {
-        return ANIMATION_BACKGROUND_WIDTH * (int) (getResources().getDisplayMetrics().density);
+        return ANIMATION_BACKGROUND_WIDTH * (int) getResources().getDisplayMetrics().density;
     }
 
     private int getForegroundBarWidth() {
-        return ANIMATION_FOREGROUND_WIDTH * (int) (getResources().getDisplayMetrics().density);
+        return ANIMATION_FOREGROUND_WIDTH * (int) getResources().getDisplayMetrics().density;
     }
 
     private int getDefaultPadding() {
         return INTERNAL_VIEW_PADDING * (int) getResources().getDisplayMetrics().density;
+    }
+
+    private int getTextSize() {
+        return TEXT_SIZE * (int) getResources().getDisplayMetrics().density;
     }
 
     private final Runnable changeBitmapRunnable = new Runnable() {
@@ -509,6 +530,13 @@ public final class SecureEntryView extends View implements EntryView {
             animateForegroundBarLeft();
         }
     };
+
+    private boolean isOnline() {
+        ConnectivityManager connectivityManager =
+                (ConnectivityManager) getContext().getSystemService(Context.CONNECTIVITY_SERVICE);
+        NetworkInfo networkInfo = connectivityManager.getActiveNetworkInfo();
+        return networkInfo != null && networkInfo.isConnected();
+    }
 
     private void animateBackgroundBarRight() {
         // compute leftX start & end
@@ -618,8 +646,8 @@ public final class SecureEntryView extends View implements EntryView {
      */
     private static class AnimationRectF extends RectF {
 
-        AnimationRectF(float left, float top, float right, float bottom) {
-            super(left, top, right, bottom);
+        AnimationRectF() {
+            super();
         }
 
         public void setRight(float right) {

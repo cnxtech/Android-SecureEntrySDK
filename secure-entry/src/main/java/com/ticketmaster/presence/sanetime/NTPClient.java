@@ -51,10 +51,12 @@ final class NTPClient {
 
             } catch (IOException ioe) {
                 ioe.printStackTrace();
+                callback.onError();
             }
 
         } catch (SocketException e) {
             e.printStackTrace();
+            callback.onError();
         }
 
         client.close();

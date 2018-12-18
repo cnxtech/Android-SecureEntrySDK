@@ -26,6 +26,8 @@ public final class Clock {
     public interface Callback {
 
         void onComplete(long offset, Date now);
+
+        void onError();
     }
 
     private static Clock clock;
@@ -68,6 +70,11 @@ public final class Clock {
                         stableTime = new TimeFreeze(offset);
                         timeStorage.setStableTime(stableTime);
                         callback.onComplete(offset, now);
+                    }
+
+                    @Override
+                    public void onError() {
+                        callback.onError();
                     }
                 });
             }
