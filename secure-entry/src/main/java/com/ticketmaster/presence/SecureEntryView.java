@@ -60,15 +60,12 @@ import org.json.JSONObject;
 
 import java.nio.ByteBuffer;
 import java.util.Date;
-import java.util.Locale;
 
 /**
- * View displaying a rotating PDF417 or static PDF417 ticket.
+ * View displaying a rotating PDF417 or static QRCode ticket.
  */
 
 public final class SecureEntryView extends View implements EntryView {
-
-    private static final String TAG = SecureEntryView.class.getSimpleName();
 
     private static final int BACKGROUND_ANIMATION_DURATION = 700;
     private static final int BACKGROUND_ANIMATION_DELAY_DURATION = 800;

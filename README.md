@@ -16,7 +16,7 @@ Class definition for the view:
 
 ```java
 /**
- * View displaying a rotating PDF417 or static PDF417 ticket.
+ * View displaying a rotating PDF417 or static QRCode ticket.
  */
 public final class SecureEntryView extends View implements EntryView {}
 ```
