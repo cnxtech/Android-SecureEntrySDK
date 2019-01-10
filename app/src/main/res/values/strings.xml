@@ -34,6 +34,7 @@
     <string-array name="titles">
         <item >Rotating</item>
         <item >Static</item>
+        <item >Tickets</item>
     </string-array>
 
     <string-array name="colors">

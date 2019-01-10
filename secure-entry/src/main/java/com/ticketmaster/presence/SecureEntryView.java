@@ -34,6 +34,8 @@ import android.net.NetworkInfo;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Looper;
+import android.os.Parcel;
+import android.os.Parcelable;
 import android.support.annotation.ColorInt;
 import android.support.annotation.VisibleForTesting;
 import android.text.TextPaint;
@@ -110,6 +112,9 @@ public final class SecureEntryView extends View implements EntryView {
 
     private boolean mFlipped;
     private int mRetryCount = 3;
+    private int mBrandingColor;
+    private String mToken;
+    private boolean mAttached;
 
     public SecureEntryView(Context context) {
         this(context, null);
@@ -153,10 +158,16 @@ public final class SecureEntryView extends View implements EntryView {
                 typedArray.recycle();
             }
         }
+
+        // setup the threading mechanism
+        mHandlerThread.start();
+        Looper looper = mHandlerThread.getLooper();
+        mWorkerHandler = new Handler(looper);
     }
 
     @Override
     public void setToken(String token) {
+        mToken = token;
         mStateMessage = getResources().getString(R.string.loading);
         mRetryCount = 3;
         decodeToken(token);
@@ -168,6 +179,7 @@ public final class SecureEntryView extends View implements EntryView {
 
     @Override
     public void setBrandingColor(@ColorInt int brandingColor) {
+        mBrandingColor = brandingColor;
         mAnimationBackgroundPaint.setColor(brandingColor);
         mAnimationBackgroundPaint.setAlpha(70);
         mAnimationForegroundPaint.setColor(brandingColor);
@@ -177,22 +189,41 @@ public final class SecureEntryView extends View implements EntryView {
     @Override
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
-
-        // setup the threading mechanism
-        mHandlerThread.start();
-        Looper looper = mHandlerThread.getLooper();
-        mWorkerHandler = new Handler(looper);
+        mAttached = true;
     }
 
     @Override
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
+        mAttached = false;
+    }
 
-        // clean up any threading
-        mHandlerThread.quit();
+    @Override
+    protected void onWindowVisibilityChanged(int visibility) {
         mUiHandler.removeCallbacksAndMessages(null);
         mWorkerHandler.removeCallbacksAndMessages(null);
+        if (visibility == VISIBLE && mEntryData != null) {
+            displayTicket();
+            requestLayout();
+        }
+    }
 
+    @Override
+    public Parcelable onSaveInstanceState() {
+        // Force our ancestor class to save its state
+        Parcelable superState = super.onSaveInstanceState();
+        SavedState ss = new SavedState(superState);
+        ss.token = mToken;
+        ss.brandingColor = mBrandingColor;
+        return ss;
+    }
+
+    @Override
+    public void onRestoreInstanceState(Parcelable state) {
+        SavedState ss = (SavedState) state;
+        super.onRestoreInstanceState(ss.getSuperState());
+        setBrandingColor(ss.brandingColor);
+        mToken = ss.token;
     }
 
     @Override
@@ -361,6 +392,10 @@ public final class SecureEntryView extends View implements EntryView {
     }
 
     private void decodeToken(String token) {
+        if (token == null || token.trim().length() == 0) {
+            mStateMessage = getResources().getString(R.string.error_no_token);
+            return;
+        }
         byte[] bytes = Base64.decode(token, Base64.DEFAULT);
         String decoded = new String(bytes);
 
@@ -494,28 +529,36 @@ public final class SecureEntryView extends View implements EntryView {
     private final Runnable moveBackgroundRightRunnable = new Runnable() {
         @Override
         public void run() {
-            animateBackgroundBarRight();
+            if (mAttached) {
+                animateBackgroundBarRight();
+            }
         }
     };
 
     private final Runnable moveBackgroundLeftRunnable = new Runnable() {
         @Override
         public void run() {
-            animateBackgroundBarLeft();
+            if (mAttached) {
+                animateBackgroundBarLeft();
+            }
         }
     };
 
     private final Runnable moveForegroundRightRunnable = new Runnable() {
         @Override
         public void run() {
-            animateForegroundBarRight();
+            if (mAttached) {
+                animateForegroundBarRight();
+            }
         }
     };
 
     private final Runnable moveForeGroundLeftRunnable = new Runnable() {
         @Override
         public void run() {
-            animateForegroundBarLeft();
+            if (mAttached) {
+                animateForegroundBarLeft();
+            }
         }
     };
 
@@ -645,5 +688,48 @@ public final class SecureEntryView extends View implements EntryView {
         public void setLeft(float left) {
             this.left = left;
         }
+    }
+
+    /**
+     * Saves the state of the view on orientation changes
+     */
+    private static class SavedState extends BaseSavedState {
+        private String token;
+        private int brandingColor;
+
+        /**
+         * Constructor called from {@link SecureEntryView#onSaveInstanceState()}
+         */
+        SavedState(Parcelable superState) {
+            super(superState);
+        }
+
+        /**
+         * Constructor called from {@link #CREATOR}
+         */
+        private SavedState(Parcel in) {
+            super(in);
+            token = in.readString();
+            brandingColor = in.readInt();
+        }
+
+        @Override
+        public void writeToParcel(Parcel out, int flags) {
+            super.writeToParcel(out, flags);
+            out.writeString(token);
+            out.writeInt(brandingColor);
+        }
+
+        public static final Parcelable.Creator<SavedState> CREATOR
+                = new Parcelable.Creator<SavedState>() {
+            public SavedState createFromParcel(Parcel in) {
+                return new SavedState(in);
+            }
+
+            public SavedState[] newArray(int size) {
+                return new SavedState[size];
+            }
+        };
+
     }
 }

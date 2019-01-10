@@ -24,12 +24,10 @@ import android.support.v4.app.FragmentPagerAdapter;
 import android.support.v4.view.ViewPager;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
-import android.view.WindowManager;
 
+import com.ticketmaster.presence.secure_entry_demo.fragment.TicketsViewFragment;
 import com.ticketmaster.presence.secure_entry_demo.fragment.RotatingSecureEntryFragment;
 import com.ticketmaster.presence.secure_entry_demo.fragment.StaticSecureEntryFragment;
-
-import static android.view.WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_FULL;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -63,6 +61,8 @@ public class MainActivity extends AppCompatActivity {
                 return RotatingSecureEntryFragment.newInstance();
             } else if (i == 1) {
                 return StaticSecureEntryFragment.newInstance();
+            } else if(i == 2){
+                return TicketsViewFragment.newInstance();
             }
             return null;
         }
