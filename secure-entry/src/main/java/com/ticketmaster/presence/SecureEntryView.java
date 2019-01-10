@@ -1,6 +1,6 @@
 package com.ticketmaster.presence;
 /*
-    Copyright 2018 Ticketmaster
+    Copyright 2019 Ticketmaster
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
@@ -36,12 +36,14 @@ import android.os.HandlerThread;
 import android.os.Looper;
 import android.os.Parcel;
 import android.os.Parcelable;
+import android.os.Process;
 import android.support.annotation.ColorInt;
 import android.support.annotation.VisibleForTesting;
 import android.text.TextPaint;
 import android.text.TextUtils;
 import android.util.AttributeSet;
 import android.util.Base64;
+import android.util.Log;
 import android.view.View;
 import android.view.animation.AccelerateDecelerateInterpolator;
 import android.view.animation.Interpolator;
@@ -84,7 +86,7 @@ public final class SecureEntryView extends View implements EntryView {
     private static final long ROTATION_INTERVAL = 15000L;
     private static final double TIME_INTERVAL = 15;
 
-    private HandlerThread mHandlerThread = new HandlerThread("SecureEntryViewThread");
+    private HandlerThread mHandlerThread = new HandlerThread("BackgroundWorker", Process.THREAD_PRIORITY_BACKGROUND);
     private Handler mWorkerHandler;
     private Handler mUiHandler = new Handler(Looper.getMainLooper());
 
@@ -95,6 +97,9 @@ public final class SecureEntryView extends View implements EntryView {
     private EntryData mEntryData;
     private String mMessageToEncode;
     private String mStateMessage;
+
+    private String mToken;
+    private int mBrandingColor;
 
     private float mAspectRatio = (float) PDF417_MIN_HEIGHT / (float) PDF417_MIN_WIDTH;
     private Bitmap mBitmap;
@@ -112,8 +117,7 @@ public final class SecureEntryView extends View implements EntryView {
 
     private boolean mFlipped;
     private int mRetryCount = 3;
-    private int mBrandingColor;
-    private String mToken;
+
     private boolean mAttached;
 
     public SecureEntryView(Context context) {
@@ -161,8 +165,7 @@ public final class SecureEntryView extends View implements EntryView {
 
         // setup the threading mechanism
         mHandlerThread.start();
-        Looper looper = mHandlerThread.getLooper();
-        mWorkerHandler = new Handler(looper);
+        mWorkerHandler = new Handler(mHandlerThread.getLooper());
     }
 
     @Override
@@ -194,16 +197,21 @@ public final class SecureEntryView extends View implements EntryView {
 
     @Override
     protected void onDetachedFromWindow() {
+        mUiHandler.removeCallbacksAndMessages(null);
+        mWorkerHandler.removeCallbacksAndMessages(null);
         super.onDetachedFromWindow();
         mAttached = false;
     }
 
     @Override
     protected void onWindowVisibilityChanged(int visibility) {
+        Log.d("WindowVisibility", "onWindowVisibilityChanged() called with: visibility = [" + visibility + "]");
         mUiHandler.removeCallbacksAndMessages(null);
         mWorkerHandler.removeCallbacksAndMessages(null);
-        if (visibility == VISIBLE && mEntryData != null) {
-            displayTicket();
+        if (visibility == VISIBLE) {
+            if (mEntryData != null) {
+                displayTicket();
+            }
             requestLayout();
         }
     }
@@ -502,6 +510,10 @@ public final class SecureEntryView extends View implements EntryView {
         @Override
         public void run() {
 
+            if (!mAttached) {
+                return;
+            }
+
             Date now;
             try {
                 now = Clock.getInstance(getContext()).now();
@@ -529,36 +541,28 @@ public final class SecureEntryView extends View implements EntryView {
     private final Runnable moveBackgroundRightRunnable = new Runnable() {
         @Override
         public void run() {
-            if (mAttached) {
-                animateBackgroundBarRight();
-            }
+            animateBackgroundBarRight();
         }
     };
 
     private final Runnable moveBackgroundLeftRunnable = new Runnable() {
         @Override
         public void run() {
-            if (mAttached) {
-                animateBackgroundBarLeft();
-            }
+            animateBackgroundBarLeft();
         }
     };
 
     private final Runnable moveForegroundRightRunnable = new Runnable() {
         @Override
         public void run() {
-            if (mAttached) {
-                animateForegroundBarRight();
-            }
+            animateForegroundBarRight();
         }
     };
 
     private final Runnable moveForeGroundLeftRunnable = new Runnable() {
         @Override
         public void run() {
-            if (mAttached) {
-                animateForegroundBarLeft();
-            }
+            animateForegroundBarLeft();
         }
     };
 
@@ -640,6 +644,10 @@ public final class SecureEntryView extends View implements EntryView {
     private void runAnimation(float startLeftX, float endLeftX, float startRightX, float endRightX,
                               int duration, final int delayDuration, AnimationRectF animationRect,
                               final Runnable runnable) {
+
+        if (!mAttached) {
+            return;
+        }
 
         ObjectAnimator animateLeft =
                 ObjectAnimator.ofFloat(animationRect, "left", startLeftX, endLeftX);

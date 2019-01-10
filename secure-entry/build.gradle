@@ -37,10 +37,6 @@ dependencies {
     implementation "com.google.zxing:core:3.2.1"
     implementation 'commons-net:commons-net:3.6'
 
-    // only lifecycle stuff
-    implementation "android.arch.lifecycle:runtime:1.1.1"
-    annotationProcessor "android.arch.lifecycle:compiler:1.1.1"
-
     // Test helpers for LiveData
     testImplementation "android.arch.core:core-testing:1.1.1"
     testImplementation 'junit:junit:4.12'

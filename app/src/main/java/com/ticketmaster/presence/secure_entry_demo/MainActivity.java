@@ -1,6 +1,6 @@
 package com.ticketmaster.presence.secure_entry_demo;
 /*
-    Copyright 2018 Ticketmaster
+    Copyright 2019 Ticketmaster
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ import android.support.v4.view.ViewPager;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 
-import com.ticketmaster.presence.secure_entry_demo.fragment.TicketsViewFragment;
+import com.ticketmaster.presence.secure_entry_demo.fragment.TicketsFragment;
 import com.ticketmaster.presence.secure_entry_demo.fragment.RotatingSecureEntryFragment;
 import com.ticketmaster.presence.secure_entry_demo.fragment.StaticSecureEntryFragment;
 
@@ -62,7 +62,7 @@ public class MainActivity extends AppCompatActivity {
             } else if (i == 1) {
                 return StaticSecureEntryFragment.newInstance();
             } else if(i == 2){
-                return TicketsViewFragment.newInstance();
+                return TicketsFragment.newInstance();
             }
             return null;
         }

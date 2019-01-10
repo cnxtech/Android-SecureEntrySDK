@@ -1,4 +1,20 @@
 package com.ticketmaster.presence.secure_entry_demo.fragment;
+/*
+    Copyright 2019 Ticketmaster
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+ */
+
 
 import android.os.Bundle;
 import android.support.annotation.NonNull;
@@ -15,9 +31,9 @@ import android.view.ViewGroup;
 import com.ticketmaster.presence.SecureEntryView;
 import com.ticketmaster.presence.secure_entry_demo.R;
 
-public class TicketsViewFragment extends Fragment {
+public class TicketsFragment extends Fragment {
 
-    static String[] listItems = {
+    private static String[] listItems = {
             "eyJiIjoiOTY0NTM3MjgzNDIxIiwidCI6IlRNOjowMzo6MjAxeXRmbmllN2tpZmxzZ2hncHQ5ZDR4N2JudTljaG4zYWNwdzdocjdkOWZzc3MxcyIsImNrIjoiMzRkNmQyNTNiYjNkZTIxOTFlZDkzMGY2MmFkOGQ0ZDM4NGVhZTVmNSJ9",
             "eyJiIjogIjE5NzM3OTA2OTQzNDc3OTlhIiwidCI6ICIiLCJjayI6ICIiLCAiZWsiOiAiIn07",
             "eyJiIjoiOTY0NTM3MjgzNDIxIiwidCI6IlRNOjowMzo6MjAxeXRmbmllN2tpZmxzZ2hncHQ5ZDR4N2JudTljaG4zYWNwdzdocjdkOWZzc3MxcyIsImNrIjoiMzRkNmQyNTNiYjNkZTIxOTFlZDkzMGY2MmFkOGQ0ZDM4NGVhZTVmNSJ9",
@@ -35,8 +51,8 @@ public class TicketsViewFragment extends Fragment {
 
     private RecyclerView recyclerViewBarCodes;
 
-    public static TicketsViewFragment newInstance() {
-        return new TicketsViewFragment();
+    public static TicketsFragment newInstance() {
+        return new TicketsFragment();
     }
 
     @Nullable
@@ -57,7 +73,7 @@ public class TicketsViewFragment extends Fragment {
     }
 
 
-    public static class ItemAdapter extends RecyclerView.Adapter<ViewHolder> {
+    private static class ItemAdapter extends RecyclerView.Adapter<ViewHolder> {
         @NonNull
         @Override
         public ViewHolder onCreateViewHolder(@NonNull ViewGroup viewGroup, int i) {
@@ -77,7 +93,7 @@ public class TicketsViewFragment extends Fragment {
     }
 
 
-    static class ViewHolder extends RecyclerView.ViewHolder {
+    private static class ViewHolder extends RecyclerView.ViewHolder {
         SecureEntryView secureEntryView;
 
         ViewHolder(@NonNull View itemView) {

@@ -1,6 +1,6 @@
 package com.ticketmaster.presence.totp;
 /*
-    Copyright 2018 Ticketmaster
+    Copyright 2019 Ticketmaster
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
