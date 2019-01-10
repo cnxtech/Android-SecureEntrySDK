@@ -43,6 +43,7 @@ import android.text.TextPaint;
 import android.text.TextUtils;
 import android.util.AttributeSet;
 import android.util.Base64;
+import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.View;
 import android.view.animation.AccelerateDecelerateInterpolator;
@@ -204,15 +205,22 @@ public final class SecureEntryView extends View implements EntryView {
     }
 
     @Override
+    protected void finalize() throws Throwable {
+        super.finalize();
+        Log.d("Finalize", "finalize() called");
+        mHandlerThread.quit();
+    }
+
+    @Override
     protected void onWindowVisibilityChanged(int visibility) {
-        Log.d("WindowVisibility", "onWindowVisibilityChanged() called with: visibility = [" + visibility + "]");
-        mUiHandler.removeCallbacksAndMessages(null);
-        mWorkerHandler.removeCallbacksAndMessages(null);
         if (visibility == VISIBLE) {
-            if (mEntryData != null) {
-                displayTicket();
+            if (mToken != null) {
+                setToken(mToken);
             }
             requestLayout();
+        } else {
+            mUiHandler.removeCallbacksAndMessages(null);
+            mWorkerHandler.removeCallbacksAndMessages(null);
         }
     }
 
@@ -385,14 +393,14 @@ public final class SecureEntryView extends View implements EntryView {
 
         if (!TextUtils.isEmpty(mEntryData.getToken())) {
             mWriter = new PDF417Writer();
-            mBitmapWidth = PDF417_MIN_WIDTH * (int) getResources().getDisplayMetrics().density;
-            mBitmapHeight = PDF417_MIN_HEIGHT * (int) getResources().getDisplayMetrics().density;
+            mBitmapWidth = (int) (PDF417_MIN_WIDTH * ((float) getResources().getDisplayMetrics().densityDpi / DisplayMetrics.DENSITY_DEFAULT));
+            mBitmapHeight = (int) (PDF417_MIN_HEIGHT * ((float) getResources().getDisplayMetrics().densityDpi / DisplayMetrics.DENSITY_DEFAULT));
             mAspectRatio = (float) mBitmapHeight / (float) mBitmapWidth;
             mBarcodeFormat = BarcodeFormat.PDF_417;
         } else {
             mWriter = new QRCodeWriter();
-            mBitmapWidth = QR_CODE_MIN_WIDTH * (int) getResources().getDisplayMetrics().density;
-            mBitmapHeight = QR_CODE_MIN_WIDTH * (int) getResources().getDisplayMetrics().density;
+            mBitmapWidth = (int) (QR_CODE_MIN_WIDTH * ((float) getResources().getDisplayMetrics().densityDpi / DisplayMetrics.DENSITY_DEFAULT));
+            mBitmapHeight = (int) (QR_CODE_MIN_WIDTH * ((float) getResources().getDisplayMetrics().densityDpi / DisplayMetrics.DENSITY_DEFAULT));
             mAspectRatio = (float) mBitmapWidth / (float) mBitmapHeight;
             mBarcodeFormat = BarcodeFormat.QR_CODE;
         }
