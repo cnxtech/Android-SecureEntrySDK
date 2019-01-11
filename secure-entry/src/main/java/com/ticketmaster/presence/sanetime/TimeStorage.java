@@ -17,7 +17,6 @@ package com.ticketmaster.presence.sanetime;
 
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.preference.PreferenceManager;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -27,7 +26,7 @@ final class TimeStorage implements IStorage {
     private SharedPreferences userDefaults;
 
     TimeStorage(Context context) {
-        userDefaults = PreferenceManager.getDefaultSharedPreferences(context);
+        userDefaults = context.getSharedPreferences("com.ticketmaster.presence.secure_entry_preferences",Context.MODE_PRIVATE);
     }
 
     @Override
