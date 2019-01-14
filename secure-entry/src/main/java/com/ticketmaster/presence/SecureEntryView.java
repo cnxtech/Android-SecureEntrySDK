@@ -412,21 +412,25 @@ public final class SecureEntryView extends View implements EntryView {
             mStateMessage = getResources().getString(R.string.error_no_token);
             return;
         }
-        byte[] bytes = Base64.decode(token, Base64.DEFAULT);
-        String decoded = new String(bytes);
-
         try {
-            JSONObject jsonObject = new JSONObject(decoded);
-            String barcode = jsonObject.optString("b", null);
-            String entryToken = jsonObject.optString("t", null);
-            String customerKey = jsonObject.optString("ck", null);
-            String eventKey = jsonObject.optString("ek", null);
-            if (!TextUtils.isEmpty(entryToken)) {
-                mEntryData = new EntryData(barcode, entryToken, customerKey, eventKey);
-            } else {
-                mEntryData = new EntryData(barcode);
+            byte[] bytes = Base64.decode(token, Base64.DEFAULT);
+            String decoded = new String(bytes);
+
+            try {
+                JSONObject jsonObject = new JSONObject(decoded);
+                String barcode = jsonObject.optString("b", null);
+                String entryToken = jsonObject.optString("t", null);
+                String customerKey = jsonObject.optString("ck", null);
+                String eventKey = jsonObject.optString("ek", null);
+                if (!TextUtils.isEmpty(entryToken)) {
+                    mEntryData = new EntryData(barcode, entryToken, customerKey, eventKey);
+                } else {
+                    mEntryData = new EntryData(barcode);
+                }
+            } catch (JSONException e) {
+                mStateMessage = getResources().getString(R.string.error_invalid_token);
             }
-        } catch (JSONException e) {
+        } catch (IllegalArgumentException ex) {
             mStateMessage = getResources().getString(R.string.error_invalid_token);
         }
     }

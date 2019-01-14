@@ -32,7 +32,7 @@ import com.ticketmaster.presence.secure_entry_demo.R;
 public class RotatingSecureEntryFragment extends Fragment {
 
     static final String ROTATING_TOKEN = "eyJiIjoiOTY0NTM3MjgzNDIxIiwidCI6IlRNOjowMzo6MjAxeXRmbmllN2tpZmxzZ2hncHQ5ZDR4N2JudTljaG4zYWNwdzdocjdkOWZzc3MxcyIsImNrIjoiMzRkNmQyNTNiYjNkZTIxOTFlZDkzMGY2MmFkOGQ0ZDM4NGVhZTVmNSJ9";
-    static final String BAD_TOKEN = "baddata12318437";
+    static final String BAD_TOKEN = "12.123432567654329";
 
 
     static final int [] COLORS  = {
