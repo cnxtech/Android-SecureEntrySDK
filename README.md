@@ -15,21 +15,25 @@ public final class SecureEntryView extends FrameLayout implements EntryView, Vie
 
 ### Installation
 
-#### Manually
+#### jCenter 
 
-1. Clone Android-SecureEntrySDK from the git repository: https://github.com/ticketmaster/Android-SecureEntrySDK
-
+Add to root `build.gradle`:
+```groovy
+allprojects {
+    repositories {
+	      //...
+        jcenter()
+    }
+}
 ```
-git clone https://github.com/ticketmaster/Android-SecureEntrySDK.git
-```
 
-2. Import the project as a New Module, when importing import only include secure-entry in the import
-3. Once, imported your settings.gradle should have new module `:secure-entry` add this to your dependencies block of your `app/build.gradle`:
-
+Add to project `build.gradle` dependencies:
 ```groovy
 dependencies {
     //...
-    implementation project(":secure-entry")
+    implementation ('com.ticketmaster.presence:secure-entry:1.0.4@aar') {
+        transitive = true
+    }
 }
 ```
 
@@ -53,23 +57,21 @@ dependencies {
 }
 ```
 
-#### jCenter (Coming soon!)
+#### Manually
 
-Add to root `build.gradle`:
-```groovy
-allprojects {
-    repositories {
-	      //...
-        jcenter()
-    }
-}
+1. Clone Android-SecureEntrySDK from the git repository: https://github.com/ticketmaster/Android-SecureEntrySDK
+
+```
+git clone https://github.com/ticketmaster/Android-SecureEntrySDK.git
 ```
 
-Add to project `build.gradle` dependencies:
+2. Import the project as a New Module, when importing import only include secure-entry in the import
+3. Once, imported your settings.gradle should have new module `:secure-entry` add this to your dependencies block of your `app/build.gradle`:
+
 ```groovy
 dependencies {
     //...
-    implementation 'com.ticketmaster.presence:secure-entry:1.0.4'
+    implementation project(":secure-entry")
 }
 ```
 
@@ -97,7 +99,7 @@ If `android:layout_width="wrap_content"` and `android:layout_height="wrap_conten
 
 When supplying a width such as `android:layout_width="300dp"` the view will size its height automatically using a 5:1 ratio for PDF417 and a 1:1 ratio for QRCode but the parent view max width would be `300dp`.
 
-Finally, if `android:layout_height="wrap_content"` and `android:layout_width="match_parent"`
+Finally, if `android:layout_height="wrap_content"` and `android:layout_width="match_parent"` are used the view will use width to calculate the height using the same ratios above however, the width would be as large as the devices screen width (not recommended).
 
 Note: if using the view in `ConstraintLayout` do not supply `app:layout_constraintDimensionRatio=""` for any ratio. It is okay however to use `android:layout_width="0dp"` and `android:layout_height="wrap_content"` in this ViewGroup as it will size based on the above aspect ratio.
 
