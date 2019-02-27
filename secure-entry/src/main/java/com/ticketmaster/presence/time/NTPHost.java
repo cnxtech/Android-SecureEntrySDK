@@ -1,4 +1,4 @@
-package com.ticketmaster.presence.sanetime;
+package com.ticketmaster.presence.time;
 /*
     Copyright 2019 Ticketmaster
 
@@ -15,18 +15,21 @@ package com.ticketmaster.presence.sanetime;
     limitations under the License.
  */
 
-final class TimeUtil {
+enum NTPHost {
 
-    private TimeUtil() {
-    }
+  APPLE("time.apple.com"),
+  GOOGLE("time.google.com"),
+  MICROSOFT("time.microsoft.com"),
+  NTP_POOL_PROJECT("pool.ntp.org");
 
-    static long currentTime() {
-        long current = System.currentTimeMillis();
-        boolean error = current != 0;
-        if (!error) {
-            throw new AssertionError("system clock error: system time unavailable");
-        }
-        return current;
-    }
+  private String host;
+
+  NTPHost(String host) {
+    this.host = host;
+  }
+
+  public String getHost() {
+    return host;
+  }
 
 }

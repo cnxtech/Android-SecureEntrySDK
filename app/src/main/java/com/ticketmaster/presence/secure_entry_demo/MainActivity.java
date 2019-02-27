@@ -15,67 +15,67 @@ package com.ticketmaster.presence.secure_entry_demo;
     limitations under the License.
  */
 
-import android.content.Context;
-import android.support.annotation.Nullable;
-import android.support.design.widget.TabLayout;
-import android.support.v4.app.Fragment;
-import android.support.v4.app.FragmentManager;
-import android.support.v4.app.FragmentPagerAdapter;
-import android.support.v4.view.ViewPager;
-import android.support.v7.app.AppCompatActivity;
-import android.os.Bundle;
+import com.google.android.material.tabs.TabLayout;
 
-import com.ticketmaster.presence.secure_entry_demo.fragment.TicketsFragment;
+import android.content.Context;
+import android.os.Bundle;
+import androidx.annotation.Nullable;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.fragment.app.Fragment;
+import androidx.fragment.app.FragmentManager;
+import androidx.fragment.app.FragmentPagerAdapter;
+import androidx.viewpager.widget.ViewPager;
 import com.ticketmaster.presence.secure_entry_demo.fragment.RotatingSecureEntryFragment;
 import com.ticketmaster.presence.secure_entry_demo.fragment.StaticSecureEntryFragment;
+import com.ticketmaster.presence.secure_entry_demo.fragment.TicketsFragment;
 
 public class MainActivity extends AppCompatActivity {
 
+  @Override
+  protected void onCreate(Bundle savedInstanceState) {
+    super.onCreate(savedInstanceState);
+    setContentView(R.layout.activity_main);
+
+    TabLayout tabs = findViewById(R.id.tabs);
+    ViewPager viewPager = findViewById(R.id.viewPager);
+    tabs.setupWithViewPager(viewPager);
+
+    SimplePagerAdapter adapter = new SimplePagerAdapter(getSupportFragmentManager(), this);
+    viewPager.setAdapter(adapter);
+  }
+
+
+  private class SimplePagerAdapter extends FragmentPagerAdapter {
+
+    final String[] titles;
+
+    SimplePagerAdapter(FragmentManager fm, Context context) {
+      super(fm);
+      titles = context.getResources().getStringArray(R.array.titles);
+    }
+
+
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
-
-        TabLayout tabs = findViewById(R.id.tabs);
-        ViewPager viewPager = findViewById(R.id.viewPager);
-        tabs.setupWithViewPager(viewPager);
-
-        SimplePagerAdapter adapter = new SimplePagerAdapter(getSupportFragmentManager(), this);
-        viewPager.setAdapter(adapter);
+    public Fragment getItem(int i) {
+      if (i == 0) {
+        return RotatingSecureEntryFragment.newInstance();
+      } else if (i == 1) {
+        return StaticSecureEntryFragment.newInstance();
+      } else if (i == 2) {
+        return TicketsFragment.newInstance();
+      }
+      return null;
     }
 
-
-    private class SimplePagerAdapter extends FragmentPagerAdapter {
-
-        final String[] titles;
-
-        SimplePagerAdapter(FragmentManager fm, Context context) {
-            super(fm);
-            titles = context.getResources().getStringArray(R.array.titles);
-        }
-
-
-        @Override
-        public Fragment getItem(int i) {
-            if (i == 0) {
-                return RotatingSecureEntryFragment.newInstance();
-            } else if (i == 1) {
-                return StaticSecureEntryFragment.newInstance();
-            } else if(i == 2){
-                return TicketsFragment.newInstance();
-            }
-            return null;
-        }
-
-        @Override
-        public int getCount() {
-            return titles.length;
-        }
-
-        @Nullable
-        @Override
-        public CharSequence getPageTitle(int position) {
-            return titles[position];
-        }
+    @Override
+    public int getCount() {
+      return titles.length;
     }
+
+    @Nullable
+    @Override
+    public CharSequence getPageTitle(int position) {
+      return titles[position];
+    }
+  }
 }

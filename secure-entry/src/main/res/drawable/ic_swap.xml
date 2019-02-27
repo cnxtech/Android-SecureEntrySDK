@@ -1,0 +1,30 @@
+<!--
+   ~ Copyright 2019 Ticketmaster
+   ~
+   ~ Licensed under the Apache License, Version 2.0 (the "License");
+   ~ you may not use this file except in compliance with the License.
+   ~ You may obtain a copy of the License at
+   ~
+   ~     http://www.apache.org/licenses/LICENSE-2.0
+   ~
+   ~ Unless required by applicable law or agreed to in writing, software
+   ~ distributed under the License is distributed on an "AS IS" BASIS,
+   ~ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   ~ See the License for the specific language governing permissions and
+   ~ limitations under the License.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+  android:height="24dp"
+  android:viewportHeight="24"
+  android:viewportWidth="24"
+  android:width="24dp">
+  <path
+    android:fillAlpha="1"
+    android:fillColor="#FFFFFF"
+    android:pathData="M0,12a12,12 0,1 0,24 0a12,12 0,1 0,-24 0z" />
+  <path
+    android:fillAlpha="1"
+    android:fillColor="#999999"
+    android:fillType="evenOdd"
+    android:pathData="M9.4958,16.2542C9.7236,16.482 9.7236,16.8513 9.4958,17.0791C9.268,17.3069 8.8987,17.3069 8.6708,17.0791L4.0042,12.4125C3.8987,12.3069 3.8333,12.1611 3.8333,12C3.8333,11.8507 3.8903,11.7014 4.0042,11.5875L8.6708,6.9209C8.8987,6.6931 9.268,6.6931 9.4958,6.9209C9.7236,7.1487 9.7236,7.518 9.4958,7.7458L5.825,11.4167L20.75,11.4167C21.0722,11.4167 21.3333,11.6778 21.3333,12C21.3333,12.3221 21.0722,12.5833 20.75,12.5833L5.8249,12.5833L9.4958,16.2542Z" />
+</vector>

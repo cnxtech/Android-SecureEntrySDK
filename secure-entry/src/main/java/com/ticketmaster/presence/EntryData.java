@@ -15,64 +15,111 @@ package com.ticketmaster.presence;
     limitations under the License.
  */
 
-final class EntryData {
+import android.os.Parcel;
+import android.os.Parcelable;
 
-    private final String barcode;
-    private final String token;
-    private final String customerKey;
-    private final String eventKey;
+final class EntryData implements Parcelable {
 
-    EntryData(String barcode, String token, String customerKey, String eventKey) {
-        this.barcode = barcode;
-        this.token = token;
-        this.customerKey = customerKey;
-        this.eventKey = eventKey;
+  private final String barcode;
+  private final String token;
+  private final String customerKey;
+  private final String eventKey;
+
+  EntryData(String barcode, String token, String customerKey, String eventKey) {
+    this.barcode = barcode;
+    this.token = token;
+    this.customerKey = customerKey;
+    this.eventKey = eventKey;
+  }
+
+  EntryData(String barcode) {
+    this.barcode = barcode;
+    this.token = null;
+    this.customerKey = null;
+    this.eventKey = null;
+  }
+
+  String getBarcode() {
+    return barcode;
+  }
+
+  String getToken() {
+    return token;
+  }
+
+  String getCustomerKey() {
+    return customerKey;
+  }
+
+  String getEventKey() {
+    return eventKey;
+  }
+
+  @Override
+  public int describeContents() {
+    return 0;
+  }
+
+  @Override
+  public void writeToParcel(Parcel dest, int flags) {
+    dest.writeString(barcode);
+    dest.writeString(token);
+    dest.writeString(customerKey);
+    dest.writeString(eventKey);
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
     }
 
-    EntryData(String barcode) {
-        this.barcode = barcode;
-        this.token = null;
-        this.customerKey = null;
-        this.eventKey = null;
-    }
+    EntryData entryData = (EntryData) o;
 
-    String getBarcode() {
-        return barcode;
+    if (!barcode.equals(entryData.barcode)) {
+      return false;
     }
-
-    String getToken() {
-        return token;
+    if (token != null ? !token.equals(entryData.token) : entryData.token != null) {
+      return false;
     }
-
-    String getCustomerKey() {
-        return customerKey;
+    if (customerKey != null ? !customerKey.equals(entryData.customerKey)
+        : entryData.customerKey != null) {
+      return false;
     }
+    return eventKey != null ? eventKey.equals(entryData.eventKey) : entryData.eventKey == null;
+  }
 
-    String getEventKey() {
-        return eventKey;
+  @Override
+  public int hashCode() {
+    int result = barcode != null ? barcode.hashCode() : 0;
+    result = 31 * result + (token != null ? token.hashCode() : 0);
+    result = 31 * result + (customerKey != null ? customerKey.hashCode() : 0);
+    result = 31 * result + (eventKey != null ? eventKey.hashCode() : 0);
+    return result;
+  }
+
+  public static final Parcelable.Creator<EntryData> CREATOR = new Parcelable.Creator<EntryData>() {
+    @Override
+    public EntryData createFromParcel(Parcel source) {
+      String barcode = source.readString();
+      String token = source.readString();
+      String customerKey = source.readString();
+      String eventKey = source.readString();
+      EntryData entryData;
+      if (token != null && token.length() > 0) {
+        entryData = new EntryData(barcode, token, customerKey, eventKey);
+      } else {
+        entryData = new EntryData(barcode);
+      }
+      return entryData;
     }
-
 
     @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        EntryData entryData = (EntryData) o;
-
-        if (!barcode.equals(entryData.barcode)) return false;
-        if (token != null ? !token.equals(entryData.token) : entryData.token != null) return false;
-        if (customerKey != null ? !customerKey.equals(entryData.customerKey) : entryData.customerKey != null)
-            return false;
-        return eventKey != null ? eventKey.equals(entryData.eventKey) : entryData.eventKey == null;
+    public EntryData[] newArray(int size) {
+      return new EntryData[size];
     }
-
-    @Override
-    public int hashCode() {
-        int result = barcode != null ? barcode.hashCode() : 0;
-        result = 31 * result + (token != null ? token.hashCode() : 0);
-        result = 31 * result + (customerKey != null ? customerKey.hashCode() : 0);
-        result = 31 * result + (eventKey != null ? eventKey.hashCode() : 0);
-        return result;
-    }
+  };
 }

@@ -15,23 +15,38 @@ package com.ticketmaster.presence;
     limitations under the License.
  */
 
-import android.support.annotation.ColorRes;
 
+import android.support.annotation.ColorRes;
+import android.support.annotation.Nullable;
+
+/**
+ * Contract defining the public contract for the {@link SecureEntryView}.
+ */
 interface EntryView {
 
-    /**
-     * Call to change the underlying data in the PDF417 ticket.
-     * Note: this will cause the view to be redrawn.
-     *
-     * @param token Base64 encoded data mapping to EntryData (below)
-     */
-    void setToken(String token);
+  /**
+   * Call to change the underlying data in the PDF417 ticket.
+   * Note: this will cause the view to be redrawn.
+   *
+   * @param token Base64 encoded data mapping to EntryData (below)
+   * @see EntryData
+   */
+  void setToken(String token);
 
-    /**
-     * Call to change the color of the animation displaying over the ticket.
-     * Note: this will cause the view to be redrawn
-     *
-     * @param brandingColor color for animation over PDF417
-     */
-    void setBrandingColor(@ColorRes int brandingColor);
+  /**
+   * Call to change the color of the animation displaying over the ticket.
+   * Note: this will cause the view to be redrawn.
+   *
+   * @param brandingColor color for animation over PDF417
+   */
+  void setBrandingColor(@ColorRes int brandingColor);
+
+
+  /**
+   * Call to change the error state of a bad token.
+   * Note: a bad token is either bad json, an invalid Base64 String or an unrecognized barcode.
+   *
+   * @param errorText text to display below the error icon
+   */
+  void setErrorText(@Nullable String errorText);
 }

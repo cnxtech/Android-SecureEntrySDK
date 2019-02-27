@@ -19,27 +19,28 @@ import java.util.Arrays;
 import java.util.Collections;
 
 final class ZeroPadding {
-    byte[] add(byte[] toBytes, int blockSize) {
-        int paddingCount = blockSize - (toBytes.length % blockSize);
-        if (paddingCount > 0) {
-            byte[] mergedArray = new byte[toBytes.length + paddingCount];
-            Arrays.fill(mergedArray, (byte) 0);
-            System.arraycopy(toBytes, 0, mergedArray, 0, toBytes.length);
-            return mergedArray;
-        }
 
-        return toBytes;
+  byte[] add(byte[] toBytes, int blockSize) {
+    int paddingCount = blockSize - (toBytes.length % blockSize);
+    if (paddingCount > 0) {
+      byte[] mergedArray = new byte[toBytes.length + paddingCount];
+      Arrays.fill(mergedArray, (byte) 0);
+      System.arraycopy(toBytes, 0, mergedArray, 0, toBytes.length);
+      return mergedArray;
     }
 
+    return toBytes;
+  }
 
-    byte[] remove(byte[] fromBytes, int blockSize) {
-        Collections.reverse(Arrays.asList(fromBytes));
-        for (int i = 0; i < fromBytes.length; i++) {
 
-            if (fromBytes[i] != 0) {
-                return Arrays.copyOfRange(fromBytes, 0, fromBytes.length - i);
-            }
-        }
-        return fromBytes;
+  byte[] remove(byte[] fromBytes, int blockSize) {
+    Collections.reverse(Arrays.asList(fromBytes));
+    for (int i = 0; i < fromBytes.length; i++) {
+
+      if (fromBytes[i] != 0) {
+        return Arrays.copyOfRange(fromBytes, 0, fromBytes.length - i);
+      }
     }
+    return fromBytes;
+  }
 }

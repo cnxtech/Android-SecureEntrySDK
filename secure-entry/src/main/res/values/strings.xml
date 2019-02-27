@@ -1,10 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <!--
-<<<<<<< HEAD
    ~ Copyright 2019 Ticketmaster
-=======
-   ~ Copyright 2018 Ticketmaster
->>>>>>> a564b16c27abd50738dcf4b59b450874cc3eeae5
    ~
    ~ Licensed under the Apache License, Version 2.0 (the "License");
    ~ you may not use this file except in compliance with the License.
@@ -19,9 +15,6 @@
    ~ limitations under the License.
 -->
 <resources>
-    <string name="app_name">SecureEntrySDK</string>
-    <string name="error_no_token">No token!</string>
-    <string name="error_invalid_token">Invalid token!</string>
-    <string name="loading">Loading&#8230;</string>
-    <string name="network_error">Network error!</string>
+  <string name="app_name">SecureEntrySDK</string>
+  <string name="reload_ticket">Reload ticket</string>
 </resources>

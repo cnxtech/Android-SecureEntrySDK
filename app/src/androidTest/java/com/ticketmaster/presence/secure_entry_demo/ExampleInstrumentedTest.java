@@ -1,10 +1,6 @@
 package com.ticketmaster.presence.secure_entry_demo;
 /*
-<<<<<<< HEAD
     Copyright 2019 Ticketmaster
-=======
-    Copyright 2018 Ticketmaster
->>>>>>> a564b16c27abd50738dcf4b59b450874cc3eeae5
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
@@ -18,14 +14,15 @@ package com.ticketmaster.presence.secure_entry_demo;
     See the License for the specific language governing permissions and
     limitations under the License.
  */
+
+import static org.junit.Assert.assertEquals;
+
 import android.content.Context;
-import android.support.test.InstrumentationRegistry;
-import android.support.test.runner.AndroidJUnit4;
+import androidx.test.InstrumentationRegistry;
+import androidx.test.runner.AndroidJUnit4;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
-
-import static org.junit.Assert.*;
 
 /**
  * Instrumented test, which will execute on an Android device.

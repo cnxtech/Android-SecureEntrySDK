@@ -15,20 +15,27 @@ package com.ticketmaster.presence;
     limitations under the License.
  */
 
+import com.google.zxing.BarcodeFormat;
+import com.google.zxing.EncodeHintType;
+import com.google.zxing.Writer;
+import com.google.zxing.WriterException;
+import com.google.zxing.common.BitMatrix;
+import com.google.zxing.pdf417.PDF417Writer;
+import com.google.zxing.qrcode.QRCodeWriter;
+import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel;
+
 import android.animation.Animator;
+import android.animation.AnimatorInflater;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.AnimatorSet;
 import android.animation.ObjectAnimator;
-import android.animation.ValueAnimator;
 import android.content.Context;
 import android.content.res.TypedArray;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Matrix;
-import android.graphics.Paint;
-import android.graphics.Rect;
-import android.graphics.RectF;
+import android.graphics.Movie;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.Handler;
@@ -37,719 +44,1124 @@ import android.os.Looper;
 import android.os.Parcel;
 import android.os.Parcelable;
 import android.os.Process;
+import android.os.SystemClock;
 import android.support.annotation.ColorInt;
+import android.support.annotation.Nullable;
 import android.support.annotation.VisibleForTesting;
-import android.text.TextPaint;
 import android.text.TextUtils;
 import android.util.AttributeSet;
 import android.util.Base64;
-import android.util.DisplayMetrics;
 import android.util.Log;
+import android.util.SparseArray;
 import android.view.View;
 import android.view.animation.AccelerateDecelerateInterpolator;
-import android.view.animation.Interpolator;
-
-import com.google.zxing.BarcodeFormat;
-import com.google.zxing.Writer;
-import com.google.zxing.WriterException;
-import com.google.zxing.common.BitMatrix;
-import com.google.zxing.pdf417.PDF417Writer;
-import com.google.zxing.qrcode.QRCodeWriter;
-import com.ticketmaster.presence.sanetime.Clock;
-import com.ticketmaster.presence.sanetime.NTPHost;
+import android.widget.FrameLayout;
+import android.widget.ImageButton;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.TextView;
+import com.ticketmaster.presence.time.SecureEntryClock;
 import com.ticketmaster.presence.totp.OTPAlgorithm;
 import com.ticketmaster.presence.totp.TOTP;
+
+import java.io.InputStream;
+import java.nio.ByteBuffer;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.EnumMap;
+import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.nio.ByteBuffer;
-import java.util.Date;
 
 /**
  * View displaying a rotating PDF417 or static QRCode ticket.
  */
 
-public final class SecureEntryView extends View implements EntryView {
+public final class SecureEntryView extends FrameLayout implements EntryView, View.OnClickListener {
 
-    private static final int BACKGROUND_ANIMATION_DURATION = 700;
-    private static final int BACKGROUND_ANIMATION_DELAY_DURATION = 800;
-    private static final int FOREGROUND_ANIMATION_DURATION = 600;
-    private static final int FOREGROUND_ANIMATION_DELAY_DURATION = 900;
-    private static final int ANIMATION_BACKGROUND_WIDTH = 10;
-    private static final int ANIMATION_FOREGROUND_WIDTH = 4;
-    private static final int INTERNAL_VIEW_PADDING = 4;
-    private static final int QR_CODE_MIN_WIDTH = 132;
-    private static final int PDF417_MIN_WIDTH = 250;
-    private static final int PDF417_MIN_HEIGHT = 100;
-    private static final int TEXT_SIZE = 16;
+  private static final AccelerateDecelerateInterpolator ANIMATION_BAR_INTERPOLATOR
+      = new AccelerateDecelerateInterpolator();
 
-    private static final long ROTATION_INTERVAL = 15000L;
-    private static final double TIME_INTERVAL = 15;
+  private static final int BACKGROUND_ANIMATION_DURATION = 700;
+  private static final int BACKGROUND_ANIMATION_DELAY_DURATION = 800;
+  private static final int FOREGROUND_ANIMATION_DURATION = 600;
+  private static final int FOREGROUND_ANIMATION_DELAY_DURATION = 900;
 
-    private HandlerThread mHandlerThread = new HandlerThread("BackgroundWorker", Process.THREAD_PRIORITY_BACKGROUND);
-    private Handler mWorkerHandler;
-    private Handler mUiHandler = new Handler(Looper.getMainLooper());
+  private static final long ROTATION_INTERVAL = 15_000L;
+  private static final long FALLBACK_DELAY = 10_000L;
+  private static final double TIME_INTERVAL = 15;
 
-    private final Interpolator mInterpolator = new AccelerateDecelerateInterpolator();
+  private static Pattern regex = Pattern.compile("^[0-9]{12,18}(?:[A-Za-z])?$");
 
-    private BarcodeFormat mBarcodeFormat;
-    private Writer mWriter;
-    private EntryData mEntryData;
-    private String mMessageToEncode;
-    private String mStateMessage;
+  private HandlerThread handlerThread = new HandlerThread("BackgroundWorker",
+      Process.THREAD_PRIORITY_BACKGROUND);
+  private Handler workerHandler;
+  private Handler uiHandler = new Handler(Looper.getMainLooper());
 
-    private String mToken;
-    private int mBrandingColor;
+  // PDF 417
+  private Map<EncodeHintType, Object> pdfHints = new EnumMap<>(EncodeHintType.class);
+  private Writer pdf417Writer;
+  private Bitmap pdf417Bitmap;
+  private int pdf417BitmapHeight;
+  private int pdf417BitmapWidth;
+  private ImageView pdfImageView;
+  private View backgroundBarView;
+  private View foregroundBarView;
+  private ImageButton toggleImageButton;
+  private AnimatorSet backgroundAnimator;
+  private AnimatorSet foregroundAnimator;
+  private Animator qrCodeEnterAnimator;
+  private Animator qrCodeExitAnimator;
+  private Animator pdf417EnterAnimator;
+  private Animator pdf417ExitAnimator;
 
-    private float mAspectRatio = (float) PDF417_MIN_HEIGHT / (float) PDF417_MIN_WIDTH;
-    private Bitmap mBitmap;
-    private int mBitmapWidth;
-    private int mBitmapHeight;
-    private Paint mViewPaint;
-    private Rect mDstRect;
+  // QR Code
+  private Map<EncodeHintType, Object> qrHints = new EnumMap<>(EncodeHintType.class);
+  private Writer qrCodeWriter;
+  private Bitmap qrCodeBitmap;
+  private int qrCodeBitmapWidth;
+  private int qrCodeBitmapHeight;
+  private ImageView qrCodeImageView;
+  private LoadingView loadingView;
 
-    private TextPaint mTextPaint;
+  // Errors
+  private LinearLayout errorLinearLayout;
+  private FrameLayout errorImageFrameLayout;
+  private ImageView errorImageView;
+  private TextView errorTextView;
 
-    private Paint mAnimationBackgroundPaint;
-    private AnimationRectF mAnimationBackgroundRect;
-    private Paint mAnimationForegroundPaint;
-    private AnimationRectF mAnimationForegroundRect;
+  private EntryData entryData;
+  private String errorText;
+  private String token;
+  private int brandingColor;
+  private boolean imageFlipped;
+  private boolean toggled;
+  private boolean viewLoaded;
+  private long toggledAtTime;
+  private boolean animating;
 
-    private boolean mFlipped;
-    private int mRetryCount = 3;
+  public SecureEntryView(Context context) {
+    this(context, null);
+  }
 
-    private boolean mAttached;
+  public SecureEntryView(Context context, AttributeSet attrs) {
+    this(context, attrs, 0);
+  }
 
-    public SecureEntryView(Context context) {
-        this(context, null);
+  public SecureEntryView(Context context, AttributeSet attrs, int defStyleAttr) {
+    super(context, attrs, defStyleAttr);
+    init(context, attrs);
+  }
+
+  private void init(Context context, AttributeSet attrs) {
+    setClipToPadding(false);
+
+    // view inflation
+    inflate(getContext(), R.layout.secure_entry_view, this);
+    loadingView = findViewById(R.id.loadingView);
+    pdfImageView = findViewById(R.id.pdf417ImageView);
+    backgroundBarView = findViewById(R.id.thickRectangleView);
+    foregroundBarView = findViewById(R.id.thinRectangleView);
+    toggleImageButton = findViewById(R.id.toggleImageButton);
+    toggleImageButton.setOnClickListener(this);
+    qrCodeImageView = findViewById(R.id.qrImageView);
+    errorLinearLayout = findViewById(R.id.errorLinearLayout);
+    errorImageFrameLayout = findViewById(R.id.errorImageFrameLayout);
+    errorImageView = findViewById(R.id.errorImageView);
+    errorTextView = findViewById(R.id.errorTextView);
+
+    // hide all views except error view initially
+    toggleImageButton.setImageDrawable(getResources().getDrawable(R.drawable.ic_overflow));
+    showQRCodeViews(false);
+    showPdf417Views(false);
+    toggleImageButton.setVisibility(View.GONE);
+    loadingView.setVisibility(View.GONE);
+    foregroundBarView.setVisibility(View.GONE);
+    backgroundBarView.setVisibility(View.GONE);
+    errorLinearLayout.setVisibility(View.VISIBLE);
+
+    // writers
+    pdf417Writer = new PDF417Writer();
+    qrCodeWriter = new QRCodeWriter();
+
+    // hints
+    qrHints.put(EncodeHintType.ERROR_CORRECTION, ErrorCorrectionLevel.M);
+    qrHints.put(EncodeHintType.MARGIN, 0);
+    pdfHints.put(EncodeHintType.MARGIN, 0);
+
+    // default PDF417 size
+    pdf417BitmapWidth = getResources().getDimensionPixelSize(R.dimen.sesdk_pdf_417_min_width);
+    pdf417BitmapHeight = getResources().getDimensionPixelSize(R.dimen.sesdk_pdf_417_min_height);
+
+    // default QR Code size
+    qrCodeBitmapWidth = getResources().getDimensionPixelSize(R.dimen.sesdk_qr_code_min_width);
+
+    //noinspection SuspiciousNameCombination
+    qrCodeBitmapHeight = qrCodeBitmapWidth;
+
+    if (attrs != null) {
+      TypedArray typedArray = context
+          .obtainStyledAttributes(attrs, R.styleable.SecureEntryView, 0, 0);
+      try {
+        int brandingColor =
+            typedArray.getColor(R.styleable.SecureEntryView_branding_color,
+                getResources().getColor(R.color.default_animation_color));
+        errorText = typedArray.getString(R.styleable.SecureEntryView_error_text);
+        setBrandingColor(brandingColor);
+      } finally {
+        typedArray.recycle();
+      }
     }
 
-    public SecureEntryView(Context context, AttributeSet attrs) {
-        this(context, attrs, 0);
+    if (errorText == null) {
+      errorText = getContext().getString(R.string.reload_ticket);
+    }
+    errorTextView.setText(errorText);
+
+    // setup the threading mechanism
+    handlerThread.start();
+    workerHandler = new Handler(handlerThread.getLooper());
+  }
+
+  /**
+   * Applies a new token to this view, decoding it and displaying either a PDF417 or QR code in an
+   * {@link ImageView} or an error if an invalid token is detected.
+   *
+   * @param token Base64 encoded data mapping to EntryData (below)
+   */
+  @Override
+  public void setToken(String token) {
+    this.token = token;
+    this.toggled = false;
+
+    loadingView.setVisibility(View.VISIBLE);
+    errorLinearLayout.setVisibility(View.GONE);
+
+    entryData = decodeToken(token);
+    if (entryData != null) {
+      // handle showing regular view state
+      if (TextUtils.isEmpty(entryData.getToken())) {
+        // QR code
+        showPdf417Views(false);
+        toggleImageButton.setVisibility(View.GONE);
+        workerHandler.post(generateAndDisplayQRCodeBitmap);
+      } else {
+        showQRCodeViews(false);
+        toggleImageButton.setVisibility(View.VISIBLE);
+        toggleImageButton.setImageDrawable(getResources().getDrawable(R.drawable.ic_overflow));
+        generateAndDisplayInitialPdf();
+        workerHandler.post(generateQRCodeRunnable);
+      }
+    } else {
+      showPdf417Views(false);
+      showQRCodeViews(false);
+      loadingView.setVisibility(View.GONE);
+      errorLinearLayout.setVisibility(View.VISIBLE);
+    }
+  }
+
+  private EntryData decodeToken(String token) {
+    if (token == null || token.trim().length() == 0) {
+      return null;
+    }
+    try {
+      byte[] bytes = Base64.decode(token, Base64.DEFAULT);
+      String decoded = new String(bytes);
+      JSONObject jsonObject = new JSONObject(decoded);
+      String barcode = jsonObject.optString("b", null);
+      String entryToken = jsonObject.optString("t", null);
+      String customerKey = jsonObject.optString("ck", null);
+      String eventKey = jsonObject.optString("ek", null);
+      if (!TextUtils.isEmpty(entryToken)) {
+        return new EntryData(barcode, entryToken, customerKey, eventKey);
+      } else {
+        return new EntryData(barcode);
+      }
+    } catch (IllegalArgumentException | JSONException ex) {
+      Log.e("SecureEntryView", "Error: " + ex.getMessage(), ex);
+      return fallbackDecodeToken(token);
+    }
+  }
+
+  @VisibleForTesting
+  EntryData fallbackDecodeToken(String token) {
+    Matcher matcher = regex.matcher(token);
+    if (matcher.matches()) {
+      return new EntryData(token);
+    }
+    return null;
+  }
+
+  /**
+   * Applies a new branding color to the animation.
+   * Note: If no branding color is supplied a default will be applied to the animation.
+   *
+   * @param brandingColor color for animation over PDF417
+   */
+  @Override
+  public void setBrandingColor(@ColorInt int brandingColor) {
+    this.brandingColor = brandingColor;
+    backgroundBarView.setBackgroundColor(brandingColor);
+    backgroundBarView.setAlpha(0.3f);
+    foregroundBarView.setBackgroundColor(brandingColor);
+    invalidate();
+  }
+
+  /**
+   * Applies a new error message to display in the event of an invalid token.
+   * Note: If no error text is supplied a default will be applied to the error state.
+   *
+   * @param errorText text to display below the error icon
+   */
+  @Override
+  public void setErrorText(@Nullable String errorText) {
+    this.errorText = errorText;
+    if (errorTextView != null) {
+      errorTextView.setText(errorText);
+    }
+    requestLayout();
+    invalidate();
+  }
+
+  @VisibleForTesting
+  EntryData getEntryData() {
+    return entryData;
+  }
+
+  @VisibleForTesting
+  String getStateMessage() {
+    return errorText;
+  }
+
+  @VisibleForTesting
+  int getBrandingColor() {
+    return brandingColor;
+  }
+
+  @Override
+  protected void onDetachedFromWindow() {
+    super.onDetachedFromWindow();
+    uiHandler.removeCallbacksAndMessages(null);
+    workerHandler.removeCallbacksAndMessages(null);
+
+    cancelBarAnimators();
+    cancelQrEnterAnimator();
+    cancelQrExitAnimator();
+    cancelPdfEnterAnimator();
+    cancelPdfEnterAnimator();
+  }
+
+  @Override
+  protected void onAttachedToWindow() {
+    super.onAttachedToWindow();
+    if (toggled) {
+      postGenerateFallbackPdf417();
+    } else if (pdfImageView.getVisibility() == View.VISIBLE
+        && loadingView.getVisibility() != View.VISIBLE) {
+      runBarAnimators();
+    }
+  }
+
+  @Override
+  protected void onWindowVisibilityChanged(int visibility) {
+    super.onWindowVisibilityChanged(visibility);
+
+    if (visibility == View.INVISIBLE) {
+
+      cancelBarAnimators();
+      cancelQrEnterAnimator();
+      cancelQrExitAnimator();
+      cancelPdfEnterAnimator();
+      cancelPdfEnterAnimator();
+    } else if (visibility == View.VISIBLE) {
+      if (pdfImageView.getVisibility() == View.VISIBLE
+          && loadingView.getVisibility() != View.VISIBLE) {
+        runBarAnimators();
+      }
+    }
+  }
+
+  @Override
+  protected void finalize() throws Throwable {
+    super.finalize();
+    handlerThread.quit();
+  }
+
+  @Override
+  protected Parcelable onSaveInstanceState() {
+    // Force our ancestor class to save its state
+    Parcelable superState = super.onSaveInstanceState();
+    SavedState ss = new SavedState(superState);
+    ss.errorMessage = errorText;
+    ss.loaded = viewLoaded;
+    ss.toggled = toggled;
+    ss.token = token;
+    ss.toggledAtTime = toggledAtTime;
+    ss.brandingColor = brandingColor;
+    ss.entryData = entryData;
+    return ss;
+  }
+
+  @Override
+  protected void onRestoreInstanceState(Parcelable state) {
+    SavedState ss = (SavedState) state;
+    super.onRestoreInstanceState(ss.getSuperState());
+    viewLoaded = ss.loaded;
+    toggled = ss.toggled;
+    toggledAtTime = ss.toggledAtTime;
+    setBrandingColor(ss.brandingColor);
+    setErrorText(ss.errorMessage);
+    token = ss.token;
+    entryData = ss.entryData;
+  }
+
+  @Override
+  protected void dispatchSaveInstanceState(SparseArray<Parcelable> container) {
+    /* As we save our own instance state, ensure our children don't save and restore their state as well. */
+    dispatchFreezeSelfOnly(container);
+  }
+
+  @Override
+  protected void dispatchRestoreInstanceState(SparseArray<Parcelable> container) {
+    /* See comment in {@link #dispatchSaveInstanceState(SparseArray)}  */
+    dispatchThawSelfOnly(container);
+  }
+
+  @Override
+  protected int getSuggestedMinimumHeight() {
+    return getResources().getDimensionPixelSize(R.dimen.sesdk_view_min_height);
+  }
+
+  @Override
+  protected int getSuggestedMinimumWidth() {
+    return getResources().getDimensionPixelSize(R.dimen.sesdk_view_min_width);
+  }
+
+  @Override
+  protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+    measureChildWithMargins(toggleImageButton, widthMeasureSpec, 0, heightMeasureSpec, 0);
+    measureChildWithMargins(errorImageFrameLayout, widthMeasureSpec, 0, heightMeasureSpec, 0);
+    measureChildWithMargins(errorImageView, widthMeasureSpec, 0, heightMeasureSpec, 0);
+    measureChildWithMargins(errorTextView, widthMeasureSpec, 0, heightMeasureSpec, 0);
+
+    // contain the view to the fixed aspect ratio
+    final int targetWidth = View.resolveSize(getSuggestedMinimumWidth(), widthMeasureSpec);
+    final int maxWidth = Math.max(getSuggestedMinimumWidth(), targetWidth);
+    final float viewAspectRatio = getSuggestedMinimumWidth() / (getSuggestedMinimumHeight() * 1f);
+    final int maxHeight = (int) (maxWidth / viewAspectRatio);
+    setMeasuredDimension(maxWidth, maxHeight);
+
+    // measure children dependent on view dimensions
+    measureErrorLinearLayout();
+    measureQRCodeImageView(heightMeasureSpec);
+    measurePdf417ImageView(widthMeasureSpec);
+  }
+
+  private void measurePdf417ImageView(int widthMeasureSpec) {
+
+    final int width = Math.max(0, getMeasuredWidth() - getPaddingLeft() - getPaddingRight());
+    final int childWidthMeasureSpec = MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY);
+    final int pdfMeasuredWidth = View.getDefaultSize(pdf417BitmapWidth, childWidthMeasureSpec);
+    final float pdfAspectRatio = pdf417BitmapWidth / (float) pdf417BitmapHeight;
+    final int pdfMeasuredHeight = (int) (pdfMeasuredWidth / pdfAspectRatio);
+    final int pdfHeightMeasureSpec = MeasureSpec
+        .makeMeasureSpec(pdfMeasuredHeight, MeasureSpec.EXACTLY);
+    pdfImageView.measure(childWidthMeasureSpec, pdfHeightMeasureSpec);
+    loadingView.measure(childWidthMeasureSpec, pdfHeightMeasureSpec);
+
+    measureThickBarView(widthMeasureSpec, pdfHeightMeasureSpec);
+    measureThinBarView(widthMeasureSpec, pdfHeightMeasureSpec);
+  }
+
+  private void measureThickBarView(int widthMeasureSpec, int pdfHeightMeasureSpec) {
+    final MarginLayoutParams lp = (MarginLayoutParams) backgroundBarView.getLayoutParams();
+    final int childWidthMeasureSpec = getChildMeasureSpec(widthMeasureSpec,
+        getPaddingLeft() + getPaddingRight() +
+            lp.leftMargin + lp.rightMargin, lp.width);
+    backgroundBarView.measure(childWidthMeasureSpec, pdfHeightMeasureSpec);
+  }
+
+  private void measureThinBarView(int widthMeasureSpec, int heightMeasureSpec) {
+    final MarginLayoutParams lp = (MarginLayoutParams) foregroundBarView.getLayoutParams();
+    final int childWidthMeasureSpec = getChildMeasureSpec(widthMeasureSpec,
+        lp.leftMargin + lp.rightMargin, lp.width);
+    final int parentHeightMeasureSpec = resolveSize(pdfImageView.getHeight(), heightMeasureSpec);
+    final int height = getResources().getDimensionPixelSize(R.dimen.sesdk_extra_rectangle_height)
+        + parentHeightMeasureSpec;
+    final int childHeightMeasureSpec = MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY);
+    foregroundBarView.measure(childWidthMeasureSpec, childHeightMeasureSpec);
+  }
+
+  private void measureQRCodeImageView(int heightMeasureSpec) {
+    final int height = Math.max(0, getMeasuredHeight()
+        - getPaddingTop() - getPaddingBottom());
+    final int childHeightMeasureSpec = getChildMeasureSpec(heightMeasureSpec,
+        getPaddingTop() + getPaddingBottom(), height);
+    qrCodeImageView.measure(childHeightMeasureSpec, childHeightMeasureSpec);
+  }
+
+  private void measureErrorLinearLayout() {
+    final int width = Math.max(0, getMeasuredWidth() - getPaddingLeft() - getPaddingRight());
+    final int childWidthMeasureSpec = MeasureSpec.makeMeasureSpec(
+        width, MeasureSpec.EXACTLY);
+    final int height = Math.max(0, getMeasuredHeight()
+        - getPaddingTop() - getPaddingBottom());
+    final int childHeightMeasureSpec = MeasureSpec.makeMeasureSpec(
+        height, MeasureSpec.EXACTLY);
+    errorLinearLayout.measure(childWidthMeasureSpec, childHeightMeasureSpec);
+  }
+
+  @Override
+  public void onClick(View v) {
+    if (toggled) {
+      toggled = false;
+      toggleImageButton.setImageDrawable(getResources().getDrawable(R.drawable.ic_overflow));
+      uiHandler.removeCallbacksAndMessages(null);
+      workerHandler.removeCallbacksAndMessages(null);
+      cancelPdfExitAnimator();
+      cancelQrEnterAnimator();
+      hideQrCodeViewsWithAnimation();
+      showPdf417ViewsWithAnimation();
+      workerHandler.postDelayed(generateAndDisplayPdf417, ROTATION_INTERVAL);
+
+    } else {
+      toggled = true;
+      toggledAtTime = System.currentTimeMillis();
+      toggleImageButton.setImageDrawable(getResources().getDrawable(R.drawable.ic_swap));
+      uiHandler.removeCallbacksAndMessages(null);
+      workerHandler.removeCallbacksAndMessages(null);
+      qrCodeImageView.setImageBitmap(qrCodeBitmap);
+      cancelBarAnimators();
+      cancelPdfEnterAnimator();
+      cancelQrExitAnimator();
+      showQrCodeViewsWithAnimation();
+      hidePdf417ViewsWithAnimation();
+      workerHandler.postDelayed(generateFallbackPdf417, FALLBACK_DELAY);
+    }
+  }
+
+  private void cancelBarAnimators() {
+    animating = false;
+
+    if (backgroundAnimator != null) {
+      backgroundAnimator.cancel();
+      backgroundAnimator.removeAllListeners();
+      backgroundAnimator = null;
     }
 
-    public SecureEntryView(Context context, AttributeSet attrs, int defStyleAttr) {
-        super(context, attrs, defStyleAttr);
-        init(context, attrs);
+    if (foregroundAnimator != null) {
+      foregroundAnimator.cancel();
+      foregroundAnimator.removeAllListeners();
+      foregroundAnimator = null;
+    }
+  }
+
+  private void runBarAnimators() {
+    if (animating) {
+      return;
+    }
+    animating = true;
+    runBackgroundBarAnimation();
+    runForegroundBarAnimation();
+  }
+
+  private void runBackgroundBarAnimation() {
+    final int translationXLimit = getMeasuredWidth() - getPaddingLeft() - getPaddingRight()
+        - getResources().getDimensionPixelSize(R.dimen.sesdk_background_animation_bar_width);
+
+    final ObjectAnimator translateXRight =
+        ObjectAnimator.ofFloat(backgroundBarView, "translationX", 0, translationXLimit);
+    translateXRight.setDuration(BACKGROUND_ANIMATION_DURATION);
+
+    final ObjectAnimator translateXLeft =
+        ObjectAnimator.ofFloat(backgroundBarView, "translationX", translationXLimit, 0);
+    translateXLeft.setStartDelay(BACKGROUND_ANIMATION_DELAY_DURATION);
+    translateXLeft.setDuration(BACKGROUND_ANIMATION_DURATION);
+
+    if (backgroundAnimator == null) {
+      final AnimatorSet animator = new AnimatorSet();
+      animator.setInterpolator(ANIMATION_BAR_INTERPOLATOR);
+      animator.play(translateXRight).before(translateXLeft);
+      backgroundAnimator = animator;
     }
 
-    private void init(Context context, AttributeSet attrs) {
-        mViewPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        mViewPaint.setColor(Color.WHITE);
+    backgroundAnimator.addListener(new AnimatorListenerAdapter() {
+      @Override
+      public void onAnimationCancel(Animator animation) {
+        backgroundAnimator.removeAllListeners();
+      }
 
-        mTextPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
-        mTextPaint.setTextSize(getTextSize());
-        mTextPaint.setColor(Color.BLACK);
-
-        mStateMessage = context.getString(R.string.error_no_token);
-
-        mAnimationBackgroundPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        mAnimationForegroundPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-
-        mDstRect = new Rect();
-        mAnimationBackgroundRect = new AnimationRectF();
-        mAnimationForegroundRect = new AnimationRectF();
-
-        if (attrs != null) {
-            TypedArray typedArray = context
-                    .obtainStyledAttributes(attrs, R.styleable.SecureEntryView, 0, 0);
-            try {
-                int brandingColor =
-                        typedArray.getColor(R.styleable.SecureEntryView_branding_color,
-                                getResources().getColor(R.color.default_animation_color));
-                setBrandingColor(brandingColor);
-            } finally {
-                typedArray.recycle();
-            }
+      @Override
+      public void onAnimationEnd(Animator animation) {
+        if (animating) {
+          translateXRight.setStartDelay(BACKGROUND_ANIMATION_DELAY_DURATION);
+          backgroundAnimator.start();
         }
+      }
+    });
+    backgroundAnimator.start();
+  }
 
-        // setup the threading mechanism
-        mHandlerThread.start();
-        mWorkerHandler = new Handler(mHandlerThread.getLooper());
+  private void runForegroundBarAnimation() {
+    final int translationXLimit = getMeasuredWidth() - getPaddingLeft() - getPaddingRight()
+        - getResources().getDimensionPixelSize(R.dimen.sesdk_background_animation_bar_width);
+    final ObjectAnimator translateXLeft =
+        ObjectAnimator.ofFloat(foregroundBarView, "translationX", translationXLimit, 0);
+    translateXLeft.setStartDelay(FOREGROUND_ANIMATION_DELAY_DURATION);
+    translateXLeft.setDuration(FOREGROUND_ANIMATION_DURATION);
+
+    final ObjectAnimator translateXRight =
+        ObjectAnimator.ofFloat(foregroundBarView, "translationX", 0, translationXLimit);
+    translateXRight.setDuration(FOREGROUND_ANIMATION_DURATION);
+
+    if (foregroundAnimator == null) {
+      final AnimatorSet animator = new AnimatorSet();
+      animator.setInterpolator(ANIMATION_BAR_INTERPOLATOR);
+      animator.play(translateXRight).before(translateXLeft);
+      foregroundAnimator = animator;
     }
 
-    @Override
-    public void setToken(String token) {
-        mToken = token;
-        mStateMessage = getResources().getString(R.string.loading);
-        mRetryCount = 3;
-        decodeToken(token);
-        if (mEntryData != null) {
-            setupWriter();
-            displayTicket();
+    foregroundAnimator.addListener(new AnimatorListenerAdapter() {
+      @Override
+      public void onAnimationCancel(Animator animation) {
+        foregroundAnimator.removeAllListeners();
+      }
+
+      @Override
+      public void onAnimationEnd(Animator animation) {
+        if (animating) {
+          translateXRight.setStartDelay(FOREGROUND_ANIMATION_DELAY_DURATION);
+          foregroundAnimator.start();
         }
+      }
+    });
+    foregroundAnimator.start();
+  }
+
+  private void showPdf417Views(boolean display) {
+    pdfImageView.setAlpha(1f);
+    pdfImageView.setTranslationY(0f);
+    pdfImageView.setVisibility(display ? View.VISIBLE : View.GONE);
+    foregroundBarView.setVisibility(display ? View.VISIBLE : View.GONE);
+    backgroundBarView.setVisibility(display ? View.VISIBLE : View.GONE);
+
+    if (display) {
+      runBarAnimators();
+    }
+  }
+
+  private void cancelPdfEnterAnimator() {
+    if (pdf417EnterAnimator != null) {
+      pdf417EnterAnimator.cancel();
+      pdf417EnterAnimator.removeAllListeners();
+      pdf417EnterAnimator = null;
+    }
+  }
+
+  private void cancelPdfExitAnimator() {
+    if (pdf417ExitAnimator != null) {
+      pdf417ExitAnimator.cancel();
+      pdf417ExitAnimator.removeAllListeners();
+      pdf417ExitAnimator = null;
+    }
+  }
+
+  private void showPdf417ViewsWithAnimation() {
+    pdfImageView.setAlpha(0f);
+    pdfImageView.setVisibility(View.VISIBLE);
+    pdf417EnterAnimator = AnimatorInflater.loadAnimator(getContext(), R.animator.animate_in);
+    pdf417EnterAnimator.setTarget(pdfImageView);
+    pdf417EnterAnimator.addListener(new AnimatorListenerAdapter() {
+      @Override
+      public void onAnimationEnd(Animator animation) {
+        pdfImageView.setAlpha(1f);
+        foregroundBarView.setTranslationX(0);
+        backgroundBarView.setTranslationX(0);
+        foregroundBarView.setVisibility(View.VISIBLE);
+        backgroundBarView.setVisibility(View.VISIBLE);
+
+        runBarAnimators();
+      }
+
+      @Override
+      public void onAnimationCancel(Animator animation) {
+        qrCodeImageView.setAlpha(1f);
+        qrCodeImageView.setVisibility(View.VISIBLE);
+        foregroundBarView.setVisibility(View.GONE);
+        backgroundBarView.setVisibility(View.GONE);
+        pdf417EnterAnimator.removeAllListeners();
+        cancelBarAnimators();
+      }
+    });
+    pdf417EnterAnimator.start();
+  }
+
+  private void hidePdf417ViewsWithAnimation() {
+    pdfImageView.setAlpha(1f);
+    pdfImageView.setVisibility(View.VISIBLE);
+    pdf417ExitAnimator = AnimatorInflater.loadAnimator(getContext(), R.animator.animate_out);
+    pdf417ExitAnimator.setTarget(pdfImageView);
+    pdf417ExitAnimator.addListener(new AnimatorListenerAdapter() {
+      @Override
+      public void onAnimationStart(Animator animation) {
+        foregroundBarView.setVisibility(View.GONE);
+        backgroundBarView.setVisibility(View.GONE);
+      }
+
+      @Override
+      public void onAnimationEnd(Animator animation) {
+        pdfImageView.setAlpha(0f);
+        pdfImageView.setVisibility(View.GONE);
+      }
+
+      @Override
+      public void onAnimationCancel(Animator animation) {
+        pdfImageView.setAlpha(1f);
+        pdfImageView.setVisibility(View.VISIBLE);
+        qrCodeImageView.setAlpha(0f);
+        qrCodeImageView.setVisibility(View.GONE);
+        pdf417ExitAnimator.removeAllListeners();
+      }
+    });
+    pdf417ExitAnimator.start();
+  }
+
+  private void showQRCodeViews(boolean display) {
+    qrCodeImageView.setAlpha(1f);
+    qrCodeImageView.setTranslationY(0f);
+    qrCodeImageView.setVisibility(display ? View.VISIBLE : View.GONE);
+  }
+
+  private void cancelQrEnterAnimator() {
+    if (qrCodeEnterAnimator != null) {
+      qrCodeEnterAnimator.cancel();
+      qrCodeEnterAnimator.removeAllListeners();
+      qrCodeEnterAnimator = null;
+    }
+  }
+
+  private void cancelQrExitAnimator() {
+    if (qrCodeExitAnimator != null) {
+      qrCodeExitAnimator.cancel();
+      qrCodeExitAnimator.removeAllListeners();
+      qrCodeExitAnimator = null;
+    }
+  }
+
+  private void showQrCodeViewsWithAnimation() {
+    qrCodeImageView.setAlpha(0f);
+    qrCodeImageView.setVisibility(View.VISIBLE);
+    qrCodeEnterAnimator = AnimatorInflater.loadAnimator(getContext(), R.animator.animate_in);
+    qrCodeEnterAnimator.setTarget(qrCodeImageView);
+    qrCodeEnterAnimator.addListener(new AnimatorListenerAdapter() {
+      @Override
+      public void onAnimationEnd(Animator animation) {
+        qrCodeImageView.setAlpha(1f);
+      }
+
+      @Override
+      public void onAnimationCancel(Animator animation) {
+        qrCodeImageView.setAlpha(1f);
+        qrCodeImageView.setVisibility(View.VISIBLE);
+        foregroundBarView.setVisibility(View.GONE);
+        backgroundBarView.setVisibility(View.GONE);
+        cancelBarAnimators();
+      }
+    });
+    qrCodeEnterAnimator.start();
+  }
+
+  private void hideQrCodeViewsWithAnimation() {
+    qrCodeImageView.setAlpha(1f);
+    qrCodeImageView.setVisibility(View.VISIBLE);
+    qrCodeExitAnimator = AnimatorInflater.loadAnimator(getContext(), R.animator.animate_out);
+    qrCodeExitAnimator.setTarget(qrCodeImageView);
+    qrCodeExitAnimator.addListener(new AnimatorListenerAdapter() {
+      @Override
+      public void onAnimationEnd(Animator animation) {
+        qrCodeImageView.setAlpha(0f);
+        qrCodeImageView.setVisibility(View.GONE);
+      }
+
+      @Override
+      public void onAnimationCancel(Animator animation) {
+        qrCodeImageView.setAlpha(1f);
+        qrCodeImageView.setVisibility(View.VISIBLE);
+        qrCodeExitAnimator.removeAllListeners();
+      }
+    });
+    qrCodeExitAnimator.start();
+  }
+
+  private Bitmap generateBitmap(Writer writer, String messageToEncode, BarcodeFormat barcodeFormat,
+      int bitmapWidth, int bitmapHeight, Map<EncodeHintType, Object> hints) {
+
+    if (messageToEncode == null) {
+      return null;
     }
 
-    @Override
-    public void setBrandingColor(@ColorInt int brandingColor) {
-        mBrandingColor = brandingColor;
-        mAnimationBackgroundPaint.setColor(brandingColor);
-        mAnimationBackgroundPaint.setAlpha(70);
-        mAnimationForegroundPaint.setColor(brandingColor);
-        invalidate();
-    }
+    try {
+      final BitMatrix bitMatrix = writer
+          .encode(messageToEncode, barcodeFormat, bitmapWidth, bitmapHeight, hints);
 
-    @Override
-    protected void onAttachedToWindow() {
-        super.onAttachedToWindow();
-        mAttached = true;
-    }
-
-    @Override
-    protected void onDetachedFromWindow() {
-        mUiHandler.removeCallbacksAndMessages(null);
-        mWorkerHandler.removeCallbacksAndMessages(null);
-        super.onDetachedFromWindow();
-        mAttached = false;
-    }
-
-    @Override
-    protected void finalize() throws Throwable {
-        super.finalize();
-        Log.d("Finalize", "finalize() called");
-        mHandlerThread.quit();
-    }
-
-    @Override
-    protected void onWindowVisibilityChanged(int visibility) {
-        if (visibility == VISIBLE) {
-            if (mToken != null) {
-                setToken(mToken);
-            }
-            requestLayout();
+      final int width = bitMatrix.getWidth();
+      final int height = bitMatrix.getHeight();
+      final Bitmap source = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+      for (int x = 0; x < width; x++) {
+        for (int y = 0; y < height; y++) {
+          source.setPixel(x, y, bitMatrix.get(x, y) ? Color.BLACK : Color.WHITE);
+        }
+      }
+      // rotate the bitmap vertically
+      if (writer instanceof PDF417Writer) {
+        final Matrix matrix = new Matrix();
+        if (imageFlipped) {
+          matrix.preScale(1, 1);
+          imageFlipped = false;
+          return Bitmap
+              .createBitmap(source, 0, 0, source.getWidth(), source.getHeight(), matrix, true);
         } else {
-            mUiHandler.removeCallbacksAndMessages(null);
-            mWorkerHandler.removeCallbacksAndMessages(null);
+          matrix.preScale(1, -1);
+          imageFlipped = true;
+          return Bitmap
+              .createBitmap(source, 0, 0, source.getWidth(), source.getHeight(), matrix, true);
         }
+
+      } else {
+        return source;
+      }
+    } catch (WriterException e) {
+      return null;
+    }
+  }
+
+  private void generateAndDisplayInitialPdf() {
+    final ConnectivityManager connectivityManager =
+        (ConnectivityManager) getContext().getSystemService(Context.CONNECTIVITY_SERVICE);
+    final NetworkInfo networkInfo = connectivityManager.getActiveNetworkInfo();
+
+    if (getNow() == null && networkInfo != null && networkInfo.isConnected()) {
+
+      SecureEntryClock.getInstance(getContext())
+          .syncTime(new SecureEntryClock.Callback() {
+            @Override
+            public void onComplete(long offset, Date now) {
+              String messageToEncode = getNewOTP(now);
+              pdf417Bitmap = generateBitmap(pdf417Writer, messageToEncode,
+                  BarcodeFormat.PDF_417,
+                  pdf417BitmapWidth,
+                  pdf417BitmapHeight,
+                  pdfHints);
+              uiHandler.post(displayInitialPdf417);
+              workerHandler.postDelayed(generateAndDisplayPdf417, ROTATION_INTERVAL);
+            }
+
+            @Override
+            public void onError() {
+              workerHandler.post(generateAndDisplayPdf417);
+            }
+          });
+    } else {
+      workerHandler.post(generateAndDisplayPdf417);
+    }
+  }
+
+  private void generatePdfBitmap() {
+
+    Date now = getNow();
+    final String messageToEncode;
+    if (now == null) {
+      messageToEncode = getNewOTP(Calendar.getInstance().getTime());
+    } else {
+      messageToEncode = getNewOTP(now);
+    }
+    pdf417Bitmap = generateBitmap(pdf417Writer, messageToEncode,
+        BarcodeFormat.PDF_417,
+        pdf417BitmapWidth,
+        pdf417BitmapHeight,
+        pdfHints);
+  }
+
+  private Date getNow() {
+    try {
+      return SecureEntryClock.getInstance(getContext()).now();
+    } catch (Exception ex) {
+      ex.printStackTrace();
+    }
+    return null;
+  }
+
+  private String getNewOTP(Date now) {
+
+    String otpMessage = entryData.getToken();
+    String customerKey = entryData.getCustomerKey();
+    String eventKey = entryData.getEventKey();
+
+    if (otpMessage == null || otpMessage.length() == 0 ||
+        customerKey == null || customerKey.length() == 0) {
+      return null;
     }
 
+    try {
+
+      long secondsPast1970 = now.getTime() / 1000;
+      byte[] customerSecret = hexStringToByteArray(customerKey);
+      TOTP customerTotp = new TOTP(ByteBuffer.wrap(customerSecret), 6, (int) TIME_INTERVAL,
+          OTPAlgorithm.SHA1);
+      String otpCustomer = customerTotp.generate(secondsPast1970, true);
+
+      if (eventKey == null || eventKey.length() == 0) {
+        return String.format("%s::%s", otpMessage, otpCustomer);
+      } else {
+        byte[] eventSecret = hexStringToByteArray(eventKey);
+        TOTP eventTotp = new TOTP(ByteBuffer.wrap(eventSecret), 6, (int) TIME_INTERVAL,
+            OTPAlgorithm.SHA1);
+        String otpEvent = eventTotp.generate(secondsPast1970, true);
+        return String.format("%s::%s::%s", otpMessage, otpEvent, otpCustomer);
+      }
+
+    } catch (InstantiationException e) {
+      e.printStackTrace();
+    }
+    return null;
+  }
+
+  @VisibleForTesting
+  byte[] hexStringToByteArray(String hex) {
+    int l = hex.length();
+    byte[] data = new byte[l / 2];
+    for (int i = 0; i < l; i += 2) {
+      data[i / 2] = (byte) ((Character.digit(hex.charAt(i), 16) << 4) + Character
+          .digit(hex.charAt(i + 1), 16));
+    }
+    return data;
+  }
+
+  private void postGenerateFallbackPdf417() {
+    final long toggledDiff = System.currentTimeMillis() - toggledAtTime;
+    if (toggledDiff < FALLBACK_DELAY) {
+      workerHandler.postDelayed(generateFallbackPdf417, FALLBACK_DELAY - toggledDiff);
+    } else {
+      workerHandler.post(generateFallbackPdf417);
+    }
+  }
+
+  private final Runnable displayInitialPdf417 = new Runnable() {
     @Override
-    public Parcelable onSaveInstanceState() {
-        // Force our ancestor class to save its state
-        Parcelable superState = super.onSaveInstanceState();
-        SavedState ss = new SavedState(superState);
-        ss.token = mToken;
-        ss.brandingColor = mBrandingColor;
-        return ss;
+    public void run() {
+      loadingView.setVisibility(View.GONE);
+      toggleImageButton.setVisibility(View.VISIBLE);
+      pdfImageView.setImageBitmap(pdf417Bitmap);
+      if (!viewLoaded) {
+        showPdf417ViewsWithAnimation();
+      } else {
+        showPdf417Views(true);
+      }
+      viewLoaded = true;
+    }
+  };
+
+  private final Runnable generateFallbackPdf417 = new Runnable() {
+    @Override
+    public void run() {
+      generatePdfBitmap();
+      uiHandler.post(displayFallbackPDF417);
+      workerHandler.postDelayed(generateAndDisplayPdf417, ROTATION_INTERVAL);
+    }
+  };
+
+  private final Runnable displayFallbackPDF417 = new Runnable() {
+    @Override
+    public void run() {
+      toggled = false;
+      pdfImageView.setImageBitmap(pdf417Bitmap);
+      toggleImageButton.setImageDrawable(getResources().getDrawable(R.drawable.ic_overflow));
+      hideQrCodeViewsWithAnimation();
+      showPdf417ViewsWithAnimation();
+    }
+  };
+
+  private final Runnable generateAndDisplayPdf417 = new Runnable() {
+    @Override
+    public void run() {
+      generatePdfBitmap();
+      uiHandler.post(displayPdf417);
+      workerHandler.postDelayed(generateAndDisplayPdf417, ROTATION_INTERVAL);
+    }
+  };
+
+  private final Runnable displayPdf417 = new Runnable() {
+    @Override
+    public void run() {
+      loadingView.setVisibility(View.GONE);
+      pdfImageView.setImageBitmap(pdf417Bitmap);
+      if (!toggled) {
+        toggleImageButton.setImageDrawable(getResources().getDrawable(R.drawable.ic_overflow));
+        showPdf417Views(true);
+      } else {
+        /*
+          it's possible on rotation, displayPdf417 is called but the view is still toggled
+          we need to explicitly handle this case here and fallback to PDF afterward.
+        */
+        toggleImageButton.setImageDrawable(getResources().getDrawable(R.drawable.ic_swap));
+        if (qrCodeBitmap == null) {
+          workerHandler.post(generateAndDisplayQRCodeBitmap);
+        } else {
+          qrCodeImageView.setImageBitmap(qrCodeBitmap);
+          showQRCodeViews(true);
+        }
+        postGenerateFallbackPdf417();
+      }
+    }
+  };
+
+  private final Runnable generateAndDisplayQRCodeBitmap = new Runnable() {
+    @Override
+    public void run() {
+      if (qrCodeBitmap == null) {
+        qrCodeBitmap = generateBitmap(qrCodeWriter, entryData.getBarcode(),
+            BarcodeFormat.QR_CODE,
+            qrCodeBitmapWidth,
+            qrCodeBitmapHeight, qrHints);
+      }
+      uiHandler.post(displayQRCode);
+      viewLoaded = true;
+    }
+  };
+
+  private final Runnable generateQRCodeRunnable = new Runnable() {
+    @Override
+    public void run() {
+      qrCodeBitmap = generateBitmap(qrCodeWriter, entryData.getBarcode(),
+          BarcodeFormat.QR_CODE,
+          qrCodeBitmapWidth,
+          qrCodeBitmapHeight, qrHints);
+    }
+  };
+
+  private final Runnable displayQRCode = new Runnable() {
+    @Override
+    public void run() {
+      loadingView.setVisibility(View.GONE);
+      qrCodeImageView.setImageBitmap(qrCodeBitmap);
+      showQRCodeViews(true);
+    }
+  };
+
+  /**
+   * Supports loading .gif from assets
+   */
+  protected static class LoadingView extends View {
+
+    private Movie movieGif;
+    private long gifStartTime;
+    private float scaleX;
+    private float scaleY;
+
+    public LoadingView(Context context) {
+      this(context, null);
     }
 
-    @Override
-    public void onRestoreInstanceState(Parcelable state) {
-        SavedState ss = (SavedState) state;
-        super.onRestoreInstanceState(ss.getSuperState());
-        setBrandingColor(ss.brandingColor);
-        mToken = ss.token;
+    public LoadingView(Context context, @Nullable AttributeSet attrs) {
+      this(context, attrs, 0);
+    }
+
+    public LoadingView(Context context, AttributeSet attrs, int defStyleAttr) {
+      super(context, attrs, defStyleAttr);
+
+      InputStream inputStream = getResources().openRawResource(R.raw.loading);
+      movieGif = Movie.decodeStream(inputStream);
     }
 
     @Override
     protected void onDraw(Canvas canvas) {
-        super.onDraw(canvas);
+      canvas.scale(scaleX, scaleY);
 
-        if (mEntryData != null && mBitmap != null) {
-            // static
-            if (TextUtils.isEmpty(mEntryData.getToken())) {
-                canvas.drawBitmap(mBitmap, null, mDstRect, mViewPaint);
-                // rotating
-            } else if (!TextUtils.isEmpty(mEntryData.getToken())) {
-                canvas.drawBitmap(mBitmap, null, mDstRect, mViewPaint);
-                canvas.drawRect(mAnimationBackgroundRect, mAnimationBackgroundPaint);
-                canvas.drawRect(mAnimationForegroundRect, mAnimationForegroundPaint);
-            } else {
-                canvas.drawColor(Color.WHITE);
-                float startTextX = (getWidth() / 2) - (mTextPaint.measureText(mStateMessage) / 2);
-                float startTextY = (getHeight() / 2) - ((mTextPaint.ascent() + mTextPaint.descent()) / 2);
-                canvas.drawText(mStateMessage, startTextX, startTextY, mTextPaint);
-            }
-        } else {
-            canvas.drawColor(Color.WHITE);
-            float startTextX = (getWidth() / 2) - (mTextPaint.measureText(mStateMessage) / 2);
-            float startTextY = (getHeight() / 2) - ((mTextPaint.ascent() + mTextPaint.descent()) / 2);
-            canvas.drawText(mStateMessage, startTextX, startTextY, mTextPaint);
+      long now = SystemClock.uptimeMillis();
+      if (gifStartTime == 0) {
+        gifStartTime = now;
+      }
+
+      if (movieGif != null) {
+
+        int duration = movieGif.duration();
+        if (duration == 0) {
+          duration = 1000;
         }
+
+        int relTime = (int) ((now - gifStartTime) % duration);
+        movieGif.setTime(relTime);
+        movieGif.draw(canvas, 0, 0);
+        invalidate();
+      }
     }
 
     @Override
-    protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-
-        final int specMode = MeasureSpec.getMode(widthMeasureSpec);
-        final int specSize = MeasureSpec.getSize(widthMeasureSpec);
-        int result;
-        switch (specMode) {
-            case MeasureSpec.AT_MOST:
-                if (specSize < mBitmapWidth) {
-                    result = specSize | MEASURED_STATE_TOO_SMALL;
-                } else {
-                    result = mBitmapWidth + getPaddingLeft() + getPaddingRight();
-                }
-                break;
-            case MeasureSpec.EXACTLY:
-                result = specSize;
-                break;
-            case MeasureSpec.UNSPECIFIED:
-            default:
-                result = mBitmapWidth;
-        }
-
-        if (mEntryData != null) {
-            // Height will need to be based on aspect ratio
-            float tempHeight = (float) result * mAspectRatio;
-            int height = (int) tempHeight;
-            setRectDimensions(result, height);
-            setMeasuredDimension(result, height);
-        } else {
-            setErrorRectSize(result);
-        }
+    protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
+      super.onLayout(changed, left, top, right, bottom);
+      if (movieGif == null) {
+        return;
+      }
+      scaleX = getWidth() / (float) movieGif.width();
+      scaleY = getHeight() / (float) movieGif.height();
     }
 
-    private void setErrorRectSize(int width) {
+  }
 
-        // error needs to at least fit bounds
-        float textWidth = mTextPaint.measureText(mStateMessage);
-        float textHeight = mTextPaint.getTextSize() * 2;
+  /**
+   * Saves the state of the view on orientation changes
+   */
+  protected static class SavedState extends BaseSavedState {
 
-        int actualWidth = (int) textWidth + getPaddingLeft() + getPaddingRight();
-        int actualHeight = (int) textHeight + getPaddingTop() + getPaddingBottom();
+    private String token;
+    private int brandingColor;
+    private EntryData entryData;
+    private String errorMessage;
+    private boolean loaded;
+    private boolean toggled;
+    private long toggledAtTime;
 
-        if (width > actualWidth) {
-            actualWidth = width;
-        }
-
-        setMeasuredDimension(actualWidth, actualHeight);
+    SavedState(Parcelable superState) {
+      super(superState);
     }
 
-    private void setRectDimensions(int width, int height) {
-        // by default 4dp is included in the background views padding top & bottom
-        mDstRect.left = getPaddingLeft();
-        mDstRect.top = getPaddingTop() + getDefaultPadding();
-        mDstRect.right = width - getPaddingRight();
-        mDstRect.bottom = height - (getPaddingBottom() + getDefaultPadding());
-
-        // background start
-        mAnimationBackgroundRect.top = mDstRect.top;
-        mAnimationBackgroundRect.bottom = mDstRect.bottom;
-        mAnimationBackgroundRect.left = mDstRect.left;
-        mAnimationBackgroundRect.right = mDstRect.left + getBackgroundBarWidth();
-
-        // foreground start
-        mAnimationForegroundRect.top = getPaddingTop();
-        mAnimationForegroundRect.bottom = height - getPaddingBottom();
-        float halfForegroundBar = getForegroundBarWidth() / 2;
-        float halfBackgroundBar = getBackgroundBarWidth() / 2;
-        mAnimationForegroundRect.left = mDstRect.left + (halfBackgroundBar - halfForegroundBar);
-        mAnimationForegroundRect.right = mAnimationForegroundRect.left + getForegroundBarWidth();
+    private SavedState(Parcel in) {
+      super(in);
+      token = in.readString();
+      brandingColor = in.readInt();
+      entryData = in.readParcelable(EntryData.class.getClassLoader());
+      errorMessage = in.readString();
+      loaded = in.readInt() == 1;
+      toggled = in.readInt() == 1;
+      toggledAtTime = in.readLong();
     }
 
-    private void displayTicket() {
-
-        if (TextUtils.isEmpty(mEntryData.getToken())) {
-            mMessageToEncode = mEntryData.getBarcode();
-            mWorkerHandler.post(generateQrCodeRunnable);
-        } else if (!TextUtils.isEmpty(mEntryData.getToken())) {
-
-            Date now;
-            try {
-                now = Clock.getInstance(getContext()).now();
-            } catch (Exception ex) {
-                now = null;
-            }
-
-            if (now == null) {
-                syncTimeAndShowTicket(isOnline());
-            } else {
-                mUiHandler.post(moveBackgroundRightRunnable);
-                mUiHandler.post(moveForegroundRightRunnable);
-                mWorkerHandler.post(changeBitmapRunnable);
-            }
-        }
+    @Override
+    public void writeToParcel(Parcel out, int flags) {
+      super.writeToParcel(out, flags);
+      out.writeString(token);
+      out.writeInt(brandingColor);
+      out.writeParcelable(entryData, flags);
+      out.writeString(errorMessage);
+      out.writeInt(loaded ? 1 : 0);
+      out.writeInt(toggled ? 1 : 0);
+      out.writeLong(toggledAtTime);
     }
 
-    private void syncTimeAndShowTicket(boolean isOnline) {
-        if (isOnline) {
-            Clock.getInstance(getContext()).sync(NTPHost.NTP_POOL_PROJECT, new Clock.Callback() {
-                @Override
-                public void onComplete(long offset, Date now) {
+    public static final Parcelable.Creator<SavedState> CREATOR
+        = new Parcelable.Creator<SavedState>() {
+      public SavedState createFromParcel(Parcel in) {
+        return new SavedState(in);
+      }
 
-                    mUiHandler.post(moveBackgroundRightRunnable);
-                    mUiHandler.post(moveForegroundRightRunnable);
-                    mWorkerHandler.post(changeBitmapRunnable);
-                }
-
-                @Override
-                public void onError() {
-                    if (mRetryCount != 0) {
-                        mRetryCount--;
-                        syncTimeAndShowTicket(isOnline());
-                    }
-                }
-            });
-        } else {
-            mStateMessage = getResources().getString(R.string.network_error);
-            postInvalidate();
-        }
-    }
-
-    private void setupWriter() {
-
-        if (!TextUtils.isEmpty(mEntryData.getToken())) {
-            mWriter = new PDF417Writer();
-            mBitmapWidth = (int) (PDF417_MIN_WIDTH * ((float) getResources().getDisplayMetrics().densityDpi / DisplayMetrics.DENSITY_DEFAULT));
-            mBitmapHeight = (int) (PDF417_MIN_HEIGHT * ((float) getResources().getDisplayMetrics().densityDpi / DisplayMetrics.DENSITY_DEFAULT));
-            mAspectRatio = (float) mBitmapHeight / (float) mBitmapWidth;
-            mBarcodeFormat = BarcodeFormat.PDF_417;
-        } else {
-            mWriter = new QRCodeWriter();
-            mBitmapWidth = (int) (QR_CODE_MIN_WIDTH * ((float) getResources().getDisplayMetrics().densityDpi / DisplayMetrics.DENSITY_DEFAULT));
-            mBitmapHeight = (int) (QR_CODE_MIN_WIDTH * ((float) getResources().getDisplayMetrics().densityDpi / DisplayMetrics.DENSITY_DEFAULT));
-            mAspectRatio = (float) mBitmapWidth / (float) mBitmapHeight;
-            mBarcodeFormat = BarcodeFormat.QR_CODE;
-        }
-
-    }
-
-    private void decodeToken(String token) {
-        if (token == null || token.trim().length() == 0) {
-            mStateMessage = getResources().getString(R.string.error_no_token);
-            return;
-        }
-        try {
-            byte[] bytes = Base64.decode(token, Base64.DEFAULT);
-            String decoded = new String(bytes);
-
-            try {
-                JSONObject jsonObject = new JSONObject(decoded);
-                String barcode = jsonObject.optString("b", null);
-                String entryToken = jsonObject.optString("t", null);
-                String customerKey = jsonObject.optString("ck", null);
-                String eventKey = jsonObject.optString("ek", null);
-                if (!TextUtils.isEmpty(entryToken)) {
-                    mEntryData = new EntryData(barcode, entryToken, customerKey, eventKey);
-                } else {
-                    mEntryData = new EntryData(barcode);
-                }
-            } catch (JSONException e) {
-                mStateMessage = getResources().getString(R.string.error_invalid_token);
-            }
-        } catch (IllegalArgumentException ex) {
-            mStateMessage = getResources().getString(R.string.error_invalid_token);
-        }
-    }
-
-    private void getNewOTP(Date now) {
-
-        String otpMessage = mEntryData.getToken();
-        String keyToUse = mEntryData.getCustomerKey();
-
-        if (TextUtils.isEmpty(otpMessage) || TextUtils.isEmpty(keyToUse)) {
-            return;
-        }
-        byte[] secret = hexStringToByteArray(keyToUse);
-        try {
-            TOTP totp = new TOTP(ByteBuffer.wrap(secret), 6, (int) TIME_INTERVAL, OTPAlgorithm.SHA1);
-            long secondsPast1970 = now.getTime() / 1000;
-            String oneTimePassword = totp.generate(secondsPast1970, true);
-            mMessageToEncode = String.format("%s::%s", otpMessage, oneTimePassword);
-        } catch (InstantiationException e) {
-            e.printStackTrace();
-        }
-    }
-
-    @VisibleForTesting
-    byte[] hexStringToByteArray(String hex) {
-        int l = hex.length();
-        byte[] data = new byte[l / 2];
-        for (int i = 0; i < l; i += 2) {
-            data[i / 2] = (byte) ((Character.digit(hex.charAt(i), 16) << 4) + Character.digit(hex.charAt(i + 1), 16));
-        }
-        return data;
-    }
-
-    private void generateBitmap() {
-        if (mMessageToEncode == null) {
-            return;
-        }
-
-        try {
-            BitMatrix bitMatrix = mWriter.encode(mMessageToEncode, mBarcodeFormat, mBitmapWidth, mBitmapHeight);
-            int width = bitMatrix.getWidth();
-            int height = bitMatrix.getHeight();
-            Bitmap source = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
-            for (int x = 0; x < width; x++) {
-                for (int y = 0; y < height; y++) {
-                    source.setPixel(x, y, bitMatrix.get(x, y) ? Color.BLACK : Color.WHITE);
-                }
-            }
-            // rotate the bitmap vertically
-            if (!TextUtils.isEmpty(mEntryData.getToken())) {
-                if (mFlipped) {
-                    Matrix matrix = new Matrix();
-                    matrix.preScale(1, 1);
-                    mBitmap = Bitmap.createBitmap(source, 0, 0, source.getWidth(), source.getHeight(), matrix, true);
-                    mFlipped = false;
-                } else {
-                    Matrix matrix = new Matrix();
-                    matrix.preScale(1, -1);
-                    mBitmap = Bitmap.createBitmap(source, 0, 0, source.getWidth(), source.getHeight(), matrix, true);
-                    mFlipped = true;
-                }
-            } else {
-                mBitmap = source;
-                postInvalidate();
-            }
-        } catch (WriterException e) {
-            e.printStackTrace();
-            mBitmap = null;
-        }
-    }
-
-    private int getBackgroundBarWidth() {
-        return ANIMATION_BACKGROUND_WIDTH * (int) getResources().getDisplayMetrics().density;
-    }
-
-    private int getForegroundBarWidth() {
-        return ANIMATION_FOREGROUND_WIDTH * (int) getResources().getDisplayMetrics().density;
-    }
-
-    private int getDefaultPadding() {
-        return INTERNAL_VIEW_PADDING * (int) getResources().getDisplayMetrics().density;
-    }
-
-    private int getTextSize() {
-        return TEXT_SIZE * (int) getResources().getDisplayMetrics().density;
-    }
-
-    private final Runnable changeBitmapRunnable = new Runnable() {
-        @Override
-        public void run() {
-
-            if (!mAttached) {
-                return;
-            }
-
-            Date now;
-            try {
-                now = Clock.getInstance(getContext()).now();
-                if (now == null) {
-                    now = new Date(System.currentTimeMillis());
-                }
-            } catch (Exception ex) {
-                // fallback to device time
-                now = new Date(System.currentTimeMillis());
-            }
-
-            getNewOTP(now);
-            generateBitmap();
-            mWorkerHandler.postDelayed(changeBitmapRunnable, ROTATION_INTERVAL);
-        }
+      public SavedState[] newArray(int size) {
+        return new SavedState[size];
+      }
     };
 
-    private final Runnable generateQrCodeRunnable = new Runnable() {
-        @Override
-        public void run() {
-            generateBitmap();
-        }
-    };
-
-    private final Runnable moveBackgroundRightRunnable = new Runnable() {
-        @Override
-        public void run() {
-            animateBackgroundBarRight();
-        }
-    };
-
-    private final Runnable moveBackgroundLeftRunnable = new Runnable() {
-        @Override
-        public void run() {
-            animateBackgroundBarLeft();
-        }
-    };
-
-    private final Runnable moveForegroundRightRunnable = new Runnable() {
-        @Override
-        public void run() {
-            animateForegroundBarRight();
-        }
-    };
-
-    private final Runnable moveForeGroundLeftRunnable = new Runnable() {
-        @Override
-        public void run() {
-            animateForegroundBarLeft();
-        }
-    };
-
-    private boolean isOnline() {
-        ConnectivityManager connectivityManager =
-                (ConnectivityManager) getContext().getSystemService(Context.CONNECTIVITY_SERVICE);
-        NetworkInfo networkInfo = connectivityManager.getActiveNetworkInfo();
-        return networkInfo != null && networkInfo.isConnected();
-    }
-
-    private void animateBackgroundBarRight() {
-        // compute leftX start & end
-        float startBackgroundLeftX = mDstRect.left;
-        float endBackgroundLeftX = mDstRect.right - getBackgroundBarWidth();
-
-        // compute rightX start & end
-        float startBackgroundRightX = mDstRect.left + getBackgroundBarWidth();
-        float endBackgroundRightX = mDstRect.right;
-
-        // animate
-        runAnimation(startBackgroundLeftX, endBackgroundLeftX, startBackgroundRightX,
-                endBackgroundRightX, BACKGROUND_ANIMATION_DURATION,
-                BACKGROUND_ANIMATION_DELAY_DURATION, mAnimationBackgroundRect, moveBackgroundLeftRunnable);
-    }
-
-    private void animateBackgroundBarLeft() {
-        // compute leftX start & end
-        float startBackgroundLeftX = mDstRect.right - getBackgroundBarWidth();
-        float endBackgroundLeftX = mDstRect.left;
-
-        // compute rightX start & end
-        float startBackgroundRightX = mDstRect.right;
-        float endBackgroundRightX = mDstRect.left + getBackgroundBarWidth();
-
-        // animate
-        runAnimation(startBackgroundLeftX, endBackgroundLeftX, startBackgroundRightX,
-                endBackgroundRightX, BACKGROUND_ANIMATION_DURATION,
-                BACKGROUND_ANIMATION_DELAY_DURATION, mAnimationBackgroundRect, moveBackgroundRightRunnable);
-    }
-
-    private void animateForegroundBarRight() {
-
-        float halfForegroundBar = getForegroundBarWidth() / 2;
-        float halfBackgroundBar = getBackgroundBarWidth() / 2;
-
-        // compute leftX start & end
-        float startForegroundLeftX = mDstRect.left + (halfBackgroundBar - halfForegroundBar);
-        float endForegroundLeftX = mDstRect.right - (halfBackgroundBar + halfForegroundBar);
-
-        // compute rightX start & end
-        float startForegroundRightX = mDstRect.left + (halfBackgroundBar + halfForegroundBar);
-        float endForegroundRightX = mDstRect.right - (halfBackgroundBar - halfForegroundBar);
-
-        // animate
-        runAnimation(startForegroundLeftX, endForegroundLeftX, startForegroundRightX,
-                endForegroundRightX, FOREGROUND_ANIMATION_DURATION, FOREGROUND_ANIMATION_DELAY_DURATION,
-                mAnimationForegroundRect, moveForeGroundLeftRunnable);
-    }
-
-    private void animateForegroundBarLeft() {
-
-        float halfForegroundBar = getForegroundBarWidth() / 2;
-        float halfBackgroundBar = getBackgroundBarWidth() / 2;
-
-        // compute leftX start & end
-        float startForegroundLeftX = mDstRect.right - (halfBackgroundBar + halfForegroundBar);
-        float endForegroundLeftX = mDstRect.left + (halfBackgroundBar - halfForegroundBar);
-
-        // compute rightX start & end
-        float startForegroundRightX = mDstRect.right - (halfBackgroundBar - halfForegroundBar);
-        float endForegroundRightX = mDstRect.left + (halfBackgroundBar + halfForegroundBar);
-
-        // animate
-        runAnimation(startForegroundLeftX, endForegroundLeftX, startForegroundRightX,
-                endForegroundRightX, FOREGROUND_ANIMATION_DURATION, FOREGROUND_ANIMATION_DELAY_DURATION,
-                mAnimationForegroundRect, moveForegroundRightRunnable);
-    }
-
-    private void runAnimation(float startLeftX, float endLeftX, float startRightX, float endRightX,
-                              int duration, final int delayDuration, AnimationRectF animationRect,
-                              final Runnable runnable) {
-
-        if (!mAttached) {
-            return;
-        }
-
-        ObjectAnimator animateLeft =
-                ObjectAnimator.ofFloat(animationRect, "left", startLeftX, endLeftX);
-
-        ObjectAnimator animateRight =
-                ObjectAnimator.ofFloat(animationRect, "right", startRightX, endRightX);
-
-        animateLeft.addUpdateListener(animatorUpdateListener);
-
-        final AnimatorSet animatorSet = new AnimatorSet();
-        animatorSet.setInterpolator(mInterpolator);
-        animatorSet.playTogether(animateLeft, animateRight);
-        animatorSet.setDuration(duration);
-        animatorSet.addListener(new AnimatorListenerAdapter() {
-            @Override
-            public void onAnimationEnd(Animator animation) {
-                super.onAnimationEnd(animation);
-                mUiHandler.postDelayed(runnable, delayDuration);
-                animatorSet.removeListener(this);
-            }
-        });
-
-        animatorSet.start();
-    }
-
-    private final ValueAnimator.AnimatorUpdateListener animatorUpdateListener = new ValueAnimator.AnimatorUpdateListener() {
-        @Override
-        public void onAnimationUpdate(ValueAnimator animation) {
-            invalidate();
-        }
-    };
-
-    /**
-     * Internal RectF with setters for left & right to animate via ObjectAnimator
-     */
-    private static class AnimationRectF extends RectF {
-
-        AnimationRectF() {
-            super();
-        }
-
-        public void setRight(float right) {
-            this.right = right;
-        }
-
-        public void setLeft(float left) {
-            this.left = left;
-        }
-    }
-
-    /**
-     * Saves the state of the view on orientation changes
-     */
-    private static class SavedState extends BaseSavedState {
-        private String token;
-        private int brandingColor;
-
-        /**
-         * Constructor called from {@link SecureEntryView#onSaveInstanceState()}
-         */
-        SavedState(Parcelable superState) {
-            super(superState);
-        }
-
-        /**
-         * Constructor called from {@link #CREATOR}
-         */
-        private SavedState(Parcel in) {
-            super(in);
-            token = in.readString();
-            brandingColor = in.readInt();
-        }
-
-        @Override
-        public void writeToParcel(Parcel out, int flags) {
-            super.writeToParcel(out, flags);
-            out.writeString(token);
-            out.writeInt(brandingColor);
-        }
-
-        public static final Parcelable.Creator<SavedState> CREATOR
-                = new Parcelable.Creator<SavedState>() {
-            public SavedState createFromParcel(Parcel in) {
-                return new SavedState(in);
-            }
-
-            public SavedState[] newArray(int size) {
-                return new SavedState[size];
-            }
-        };
-
-    }
+  }
 }

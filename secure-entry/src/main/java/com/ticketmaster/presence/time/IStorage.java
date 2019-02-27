@@ -1,4 +1,4 @@
-package com.ticketmaster.presence.sanetime;
+package com.ticketmaster.presence.time;
 /*
     Copyright 2019 Ticketmaster
 
@@ -17,10 +17,10 @@ package com.ticketmaster.presence.sanetime;
 
 interface IStorage {
 
-    TimeFreeze getStableTime();
+  TimeFreeze getStableTime();
 
-    void setStableTime(TimeFreeze stableTime);
+  void setStableTime(TimeFreeze stableTime);
 
-    void purgeStorage();
+  void purgeStorage();
 
 }

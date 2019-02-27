@@ -16,9 +16,6 @@ package com.ticketmaster.presence.secure_entry_demo.fragment;
  */
 
 import android.os.Bundle;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-import android.support.v4.app.Fragment;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -26,39 +23,44 @@ import android.view.ViewGroup;
 import com.ticketmaster.presence.SecureEntryView;
 import com.ticketmaster.presence.secure_entry_demo.R;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.fragment.app.Fragment;
+
 public class StaticSecureEntryFragment extends Fragment {
 
-    static final String STATIC_TOKEN = "eyJiIjogIjE5NzM3OTA2OTQzNDc3OTlhIiwidCI6ICIiLCJjayI6ICIiLCAiZWsiOiAiIn07";
-    static final String BAD_TOKEN = "junk data";
+  private static final String STATIC_TOKEN = "eyJiIjoiNDg2ODg2OTg3Nzc1MTAwOWEifQ==";
+  private static final String BAD_TOKEN = "junk data";
 
-    public static StaticSecureEntryFragment newInstance() {
+  public static StaticSecureEntryFragment newInstance() {
 
-        return new StaticSecureEntryFragment();
-    }
+    return new StaticSecureEntryFragment();
+  }
 
-    @Nullable
-    @Override
-    public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
-        return inflater.inflate(R.layout.fragment_static, container, false);
-    }
+  @Nullable
+  @Override
+  public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container,
+      @Nullable Bundle savedInstanceState) {
+    return inflater.inflate(R.layout.fragment_static, container, false);
+  }
 
-    @Override
-    public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
-        super.onViewCreated(view, savedInstanceState);
+  @Override
+  public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
+    super.onViewCreated(view, savedInstanceState);
 
-        SecureEntryView secureEntryView = view.findViewById(R.id.secureEntryView);
-        secureEntryView.setToken(STATIC_TOKEN);
+    SecureEntryView secureEntryView = view.findViewById(R.id.secureEntryView);
+    secureEntryView.setToken(STATIC_TOKEN);
 
-        SecureEntryView secureEntryViewSized = view.findViewById(R.id.secureEntryViewSized);
-        secureEntryViewSized.setToken(STATIC_TOKEN);
+    SecureEntryView secureEntryViewSized = view.findViewById(R.id.secureEntryViewSized);
+    secureEntryViewSized.setToken(STATIC_TOKEN);
 
-        SecureEntryView secureEntryViewFullWidth = view.findViewById(R.id.secureEntryViewFullWidth);
-        secureEntryViewFullWidth.setToken(STATIC_TOKEN);
+    SecureEntryView secureEntryViewFullWidth = view.findViewById(R.id.secureEntryViewFullWidth);
+    secureEntryViewFullWidth.setToken(STATIC_TOKEN);
 
-        SecureEntryView secureEntryViewNoToken = view.findViewById(R.id.secureEntryViewNoToken);
-        // don't set it here
+    SecureEntryView secureEntryViewNoToken = view.findViewById(R.id.secureEntryViewNoToken);
+    // don't set it here
 
-        SecureEntryView secureEntryViewBadToken = view.findViewById(R.id.secureEntryViewBadToken);
-        secureEntryViewBadToken.setToken(BAD_TOKEN);
-    }
+    SecureEntryView secureEntryViewBadToken = view.findViewById(R.id.secureEntryViewBadToken);
+    secureEntryViewBadToken.setToken(BAD_TOKEN);
+  }
 }

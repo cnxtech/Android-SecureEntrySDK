@@ -15,47 +15,49 @@
    ~ limitations under the License.
 -->
 <resources>
-    <string name="app_name">SecureEntryAndroid</string>
-    <string name="secure_entry_welcome">Welcome to the SecureEntrySDK sample application. You can render tickets using this SecureEntryView in your application.</string>
-    <string name="static_normal">Static</string>
-    <string name="static_sized">Static (sized)</string>
-    <string name="static_full_width">Static (full-width)</string>
-    <string name="static_no_token">Static (no token)</string>
-    <string name="static_bad_token">Static (invalid token)</string>
+  <string name="app_name">SecureEntryAndroid</string>
+  <string name="secure_entry_welcome">Welcome to the SecureEntrySDK sample application. You can render tickets using this SecureEntryView in your application.</string>
+  <string name="static_normal">Static</string>
+  <string name="static_sized">Static (sized)</string>
+  <string name="static_full_width">Static (full-width)</string>
+  <string name="static_no_token">Static (no token)</string>
+  <string name="static_bad_token">Static (invalid token)</string>
 
-    <string name="rotating_normal">Rotating</string>
-    <string name="rotating_sized">Rotating (sized)</string>
-    <string name="rotating_full_width">Rotating (full-width)</string>
-    <string name="rotating_no_token">Rotating (no token)</string>
-    <string name="rotating_bad_token">Rotating (invalid token)</string>
-    <string name="information">Information</string>
-    <string name="branding_color">Branding Color</string>
+  <string name="rotating_normal">Rotating</string>
+  <string name="rotating_sized">Rotating (sized)</string>
+  <string name="rotating_full_width">Rotating (full-width)</string>
+  <string name="rotating_no_token">Rotating (no token)</string>
+  <string name="rotating_bad_token">Rotating (invalid token)</string>
+  <string name="information">Information</string>
+  <string name="branding_color">Branding Color</string>
 
-    <string-array name="titles">
-        <item >Rotating</item>
-        <item >Static</item>
-        <item >Tickets</item>
-    </string-array>
+  <string name="custom_error_text">Sorry, you need to reload your ticket! This is a custom error that will truncate after 60 characters so make sure it fits the length.</string>
 
-    <string-array name="colors">
-        <item>Red</item>
-        <item>Pink</item>
-        <item>Purple</item>
-        <item>Deep Purple</item>
-        <item>Indigo</item>
-        <item>Blue</item>
-        <item>Light Blue</item>
-        <item>Cyan</item>
-        <item>Teal</item>
-        <item>Green</item>
-        <item>Light Green</item>
-        <item>Lime</item>
-        <item>Yellow</item>
-        <item>Amber</item>
-        <item>Orange</item>
-        <item>Deep Orange</item>
-        <item>Brown</item>
-        <item>Grey</item>
-        <item>Blue grey</item>
-    </string-array>
+  <string-array name="titles">
+    <item>Rotating</item>
+    <item>Static</item>
+    <item>Tickets</item>
+  </string-array>
+
+  <string-array name="colors">
+    <item>Red</item>
+    <item>Pink</item>
+    <item>Purple</item>
+    <item>Deep Purple</item>
+    <item>Indigo</item>
+    <item>Blue</item>
+    <item>Light Blue</item>
+    <item>Cyan</item>
+    <item>Teal</item>
+    <item>Green</item>
+    <item>Light Green</item>
+    <item>Lime</item>
+    <item>Yellow</item>
+    <item>Amber</item>
+    <item>Orange</item>
+    <item>Deep Orange</item>
+    <item>Brown</item>
+    <item>Grey</item>
+    <item>Blue grey</item>
+  </string-array>
 </resources>

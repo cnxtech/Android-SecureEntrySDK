@@ -1,4 +1,4 @@
-package com.ticketmaster.presence;
+package com.ticketmaster.presence.time;
 /*
     Copyright 2019 Ticketmaster
 
@@ -17,17 +17,21 @@ package com.ticketmaster.presence;
 
 import org.junit.Test;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
 
-/**
- * Example local unit test, which will execute on the development machine (host).
- *
- * @see <a href="http://d.android.com/tools/testing">Testing documentation</a>
- */
-public class ExampleUnitTest {
+public class TimeUtilTest {
 
     @Test
-    public void addition_isCorrect() {
-        assertEquals(4, 2 + 2);
+    public void testTimeUtilReturnsCurrentTime(){
+        // time the function so we can be accurate about the assert
+        long startTime = System.currentTimeMillis();
+        long actualTime = Math.round(TimeUtil.currentTime());
+
+        // compute the difference
+        long diffTime = startTime - System.currentTimeMillis();
+        long expectedTime = Math.round(System.currentTimeMillis() - diffTime);
+
+        assertEquals(actualTime, expectedTime);
     }
+
 }

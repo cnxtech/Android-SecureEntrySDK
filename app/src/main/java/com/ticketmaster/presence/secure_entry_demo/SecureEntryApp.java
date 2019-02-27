@@ -17,20 +17,42 @@ package com.ticketmaster.presence.secure_entry_demo;
 
 
 import android.app.Application;
-
+import android.util.Log;
 import com.squareup.leakcanary.LeakCanary;
+import com.ticketmaster.presence.time.SecureEntryClock;
+
+import java.util.Date;
 
 public class SecureEntryApp extends Application {
 
-    @Override
-    public void onCreate() {
-        super.onCreate();
+  private static final String TAG = SecureEntryApp.class.getSimpleName();
 
-        if (LeakCanary.isInAnalyzerProcess(this)) {
-            // This process is dedicated to LeakCanary for heap analysis.
-            // You should not init your app in this process.
-            return;
-        }
-        LeakCanary.install(this);
+  @Override
+  public void onCreate() {
+    super.onCreate();
+
+    if (LeakCanary.isInAnalyzerProcess(this)) {
+      // This process is dedicated to LeakCanary for heap analysis.
+      // You should not init your app in this process.
+      return;
     }
+    LeakCanary.install(this);
+
+
+     /*
+        You can call this method to syncTime with the NTP server early or let SecureEntryView,
+        handle it for you. Note: INTERNET permission is required for this call.
+     */
+    SecureEntryClock.getInstance(this).syncTime(new SecureEntryClock.Callback() {
+      @Override
+      public void onComplete(long offset, Date now) {
+        Log.d(TAG, "onComplete() called with: offset = [" + offset + "], now = [" + now + "]");
+      }
+
+      @Override
+      public void onError() {
+        Log.d(TAG, "onError() called");
+      }
+    });
+  }
 }

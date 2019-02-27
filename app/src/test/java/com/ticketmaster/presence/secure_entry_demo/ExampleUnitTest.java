@@ -14,9 +14,10 @@ package com.ticketmaster.presence.secure_entry_demo;
     See the License for the specific language governing permissions and
     limitations under the License.
  */
-import org.junit.Test;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+
+import org.junit.Test;
 
 /**
  * Example local unit test, which will execute on the development machine (host).

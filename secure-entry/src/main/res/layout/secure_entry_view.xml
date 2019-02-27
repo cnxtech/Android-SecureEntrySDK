@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+   ~ Copyright 2019 Ticketmaster
+   ~
+   ~ Licensed under the Apache License, Version 2.0 (the "License");
+   ~ you may not use this file except in compliance with the License.
+   ~ You may obtain a copy of the License at
+   ~
+   ~     http://www.apache.org/licenses/LICENSE-2.0
+   ~
+   ~ Unless required by applicable law or agreed to in writing, software
+   ~ distributed under the License is distributed on an "AS IS" BASIS,
+   ~ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   ~ See the License for the specific language governing permissions and
+   ~ limitations under the License.
+-->
+<merge xmlns:android="http://schemas.android.com/apk/res/android"
+  xmlns:app="http://schemas.android.com/apk/res-auto"
+  xmlns:tools="http://schemas.android.com/tools"
+  android:layout_width="wrap_content"
+  android:layout_height="wrap_content"
+  android:minHeight="@dimen/sesdk_view_min_height"
+  android:minWidth="@dimen/sesdk_view_min_width"
+  android:layout_gravity="center"
+  tools:parentTag="FrameLayout">
+
+  <!-- Error State -->
+
+  <LinearLayout
+    android:id="@+id/errorLinearLayout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="10dp"
+    android:background="@drawable/background"
+    android:gravity="center"
+    android:orientation="vertical"
+    tools:visibility="gone">
+
+    <FrameLayout
+      android:id="@+id/errorImageFrameLayout"
+      android:layout_width="match_parent"
+      android:layout_height="0dp"
+      android:layout_weight="1"
+      android:layout_marginBottom="8dp">
+
+      <ImageView
+        android:id="@+id/errorImageView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal|bottom"
+        android:src="@drawable/ic_alert" />
+
+    </FrameLayout>
+
+    <TextView
+      android:id="@+id/errorTextView"
+      android:layout_width="match_parent"
+      android:layout_height="0dp"
+      android:layout_weight="1"
+      android:ellipsize="end"
+      android:gravity="center_horizontal"
+      android:maxLength="60"
+      android:text="@string/reload_ticket" />
+
+  </LinearLayout>
+
+  <ImageView
+    android:id="@+id/pdf417ImageView"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_gravity="center"
+    android:padding="8dp"
+    android:background="@drawable/background"
+    android:scaleType="fitXY"
+    tools:src="@drawable/pdf417_placeholder" />
+
+  <View
+    android:id="@+id/thickRectangleView"
+    android:layout_width="@dimen/sesdk_background_animation_bar_width"
+    android:layout_height="wrap_content"
+    android:layout_gravity="center_vertical" />
+
+  <View
+    android:id="@+id/thinRectangleView"
+    android:layout_width="@dimen/sesdk_foreground_animation_bar_width"
+    android:layout_height="wrap_content"
+    android:layout_marginLeft="3dp"
+    android:layout_marginRight="3dp"
+    android:layout_gravity="center_vertical" />
+
+  <ImageButton
+    android:id="@+id/toggleImageButton"
+    android:layout_width="wrap_content"
+    android:layout_height="24dp"
+    android:layout_gravity="bottom|end"
+    android:background="@null"
+    app:srcCompat="@drawable/ic_overflow" />
+
+  <ImageView
+    android:id="@+id/qrImageView"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:layout_gravity="center"
+    android:padding="20dp"
+    android:background="@drawable/background"
+    android:scaleType="fitXY"
+    tools:src="@drawable/qr_placeholder"
+    tools:visibility="gone" />
+
+  <view
+    android:id="@+id/loadingView"
+    class="com.ticketmaster.presence.SecureEntryView$LoadingView"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_gravity="center"
+    android:padding="8dp"
+    tools:visibility="gone" />
+
+</merge>
