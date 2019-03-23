@@ -2,7 +2,7 @@
 
 ### SecureEntryView
 
-The main view integrating the PDF417 into 3rd party applications is the `SecureEntryView`. It is based on Android FrameLayout ViewGroup and gives access to methods for controlling the underlying data, animation color, and error handling text.
+The main view integrating the PDF417 into 3rd party applications is the `SecureEntryView`. It is based on Android FrameLayout ViewGroup and gives access to methods for controlling the underlying data, animation color, error handling text, and error icon.
 
 Class definition for the view:
 
@@ -21,7 +21,7 @@ Add to root `build.gradle`:
 ```groovy
 allprojects {
     repositories {
-	      //...
+        //...
         jcenter()
     }
 }
@@ -31,47 +31,9 @@ Add to project `build.gradle` dependencies:
 ```groovy
 dependencies {
     //...
-    implementation ('com.ticketmaster.presence:secure-entry:1.0.4@aar') {
+    implementation ('com.ticketmaster.presence:secure-entry:1.0.5@aar') {
         transitive = true
     }
-}
-```
-
-#### Jitpack
-
-Add to root `build.gradle`:
-```groovy
-allprojects {
-    repositories {
-	//...
-        maven { url 'https://jitpack.io' }
-    }
-}
-```
-
-Add to project `build.gradle` dependencies:
-```groovy
-dependencies {
-    //...
-    implementation 'com.github.ticketmaster:Android-SecureEntrySDK:1.0.4'
-}
-```
-
-#### Manually
-
-1. Clone Android-SecureEntrySDK from the git repository: https://github.com/ticketmaster/Android-SecureEntrySDK
-
-```
-git clone https://github.com/ticketmaster/Android-SecureEntrySDK.git
-```
-
-2. Import the project as a New Module, when importing import only include secure-entry in the import
-3. Once, imported your settings.gradle should have new module `:secure-entry` add this to your dependencies block of your `app/build.gradle`:
-
-```groovy
-dependencies {
-    //...
-    implementation project(":secure-entry")
 }
 ```
 
@@ -86,13 +48,6 @@ Simply include the following layout in XML:
     android:layout_height="wrap_content"/>
 ```
 
-or add it to a ViewGroup programmatically:
-
-```java
-SecureEntryView secureEntryView = new SecureEntryView(mContext);
-myViewGroup.addView(secureEntryView);
-```
-
 #### Sizing
 
 If `android:layout_width="wrap_content"` and `android:layout_height="wrap_content"` the view will be 216x160 (dp).
@@ -103,17 +58,31 @@ Finally, if `android:layout_height="wrap_content"` and `android:layout_width="ma
 
 Note: if using the view in `ConstraintLayout` do not supply `app:layout_constraintDimensionRatio=""` for any ratio. It is okay however to use `android:layout_width="0dp"` and `android:layout_height="wrap_content"` in this ViewGroup as it will size based on the above aspect ratio.
 
+#### Features:
+
+`SecureEntryView` provides the following methods:
+- setToken(String token)
+- setToken(String token, String errorText)
+- setBrandingColor(int brandingColor)
+- setErrorText(String errorText)
+- showError(String errorText, Bitmap errorIcon)
+
 #### Initializing the view:
 
-**Note:** You must call `setToken(String token)` first otherwise the view will remain in the error state.
+**Note:** You must call `setToken(String token)` first otherwise the view will remain in the loading state.
 
 ```java
 // find the view or call constructor
 SecureEntryView secureEntryView = findViewById(R.id.secureEntryView);
 
 // set the token on the view
-secureEntryView.setToken(mNewToken);
+secureEntryView.setToken(token);
+
+// set the token and error message
+String errorText = getString(R.string.custom_error_text);
+secureEntryView.setToken(token, errorText);
 ```
+**Note**: passing in an error message in the setToken method sets the error message for the view by calling `setErrorText(errorText)`.
 
 #### Change the branding color:
 ```java
@@ -132,7 +101,8 @@ or via xml:
 
 #### Change the error text:
 ```java
-secureEntryView.setErrorText(getString(R.string.custom_error_text));
+String errorText = getString(R.string.custom_error_text);
+secureEntryView.setErrorText(errorText);
 ```
 
 or via xml:
@@ -145,11 +115,17 @@ or via xml:
 
 ```
 
+#### Explicitly show an error with an image:
+```java
+String errorText = getString(R.string.custom_error_text);
+Bitmap errorIcon = BitmapFactory.decodeResource(getResources(), R.drawable.ic_error);
+secureEntryView.showError(errorText, errorIcon);
+```
+**Note**: the only way to clear the error is calling `secureEntryView.setToken(token);` or `secureEntryView.setToken(token, errorText);`.
+
 ### Syncing the time
 
-#### `SecureEntryClock.getInstance(context).syncTime()`
-
-This method is used to begin a background time sync. This method is provided to allow apps to initiate a time sync before a `SecureEntryView` is ever instantiated/displayed.
+This feature is provided to allow applications to initiate a time sync before a `SecureEntryView` is ever instantiated/displayed.
 
 It can be called in a few ways:
 
@@ -173,7 +149,7 @@ SecureEntryClock.getInstance(this).syncTime(new SecureEntryClock.Callback() {
 
 ```
 
-Note: Both calls will happen in their own thread and the response will be received on whichever thread has created the callback.
+**Note**: Both calls will happen in their own thread and the response will be received on whichever thread has created the callback.
 
 ### Permissions included in AndroidManifest.xml for this library
 ```xml

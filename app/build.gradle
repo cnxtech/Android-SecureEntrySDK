@@ -8,8 +8,7 @@ android {
         targetSdkVersion 28
         versionCode 1
         versionName "1.0"
-        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
-        vectorDrawables.useSupportLibrary true
+        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
     }
     buildTypes {
         release {
@@ -25,6 +24,10 @@ android {
     lintOptions {
         abortOnError false
     }
+
+    testOptions {
+        animationsDisabled = true
+    }
 }
 
 dependencies {
@@ -35,10 +38,10 @@ dependencies {
     implementation 'androidx.viewpager:viewpager:1.0.0'
     implementation 'androidx.cardview:cardview:1.0.0'
     implementation 'androidx.fragment:fragment:1.0.0'
+    implementation 'androidx.annotation:annotation:1.0.2'
     implementation 'androidx.recyclerview:recyclerview:1.0.0'
-    implementation 'com.google.android.material:material:1.1.0-alpha03'
-
-    // Third party libs
+    implementation 'com.google.android.material:material:1.1.0-alpha04'
+    implementation 'android.arch.navigation:navigation-fragment:1.0.0'
 
     // leak canary
     debugImplementation 'com.squareup.leakcanary:leakcanary-android:1.6.3'
@@ -46,6 +49,9 @@ dependencies {
 
     // Testing resources
     testImplementation 'junit:junit:4.12'
+    androidTestImplementation 'androidx.test:core:1.1.0'
     androidTestImplementation 'androidx.test:runner:1.1.1'
+    androidTestImplementation 'androidx.test:rules:1.1.1'
+    androidTestImplementation 'androidx.test.espresso:espresso-contrib:3.1.1'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.1.1'
 }

@@ -17,6 +17,7 @@ package com.ticketmaster.presence;
 
 import android.os.Parcel;
 import android.os.Parcelable;
+import android.text.TextUtils;
 
 final class EntryData implements Parcelable {
 
@@ -24,19 +25,23 @@ final class EntryData implements Parcelable {
   private final String token;
   private final String customerKey;
   private final String eventKey;
+  private final String rotatingToken;
+
+  EntryData(String barcode) {
+    this(barcode, null, null, null);
+  }
 
   EntryData(String barcode, String token, String customerKey, String eventKey) {
+    this(barcode, token, customerKey, eventKey, null);
+  }
+
+  EntryData(String barcode, String token, String customerKey, String eventKey,
+      String rotatingToken) {
     this.barcode = barcode;
     this.token = token;
     this.customerKey = customerKey;
     this.eventKey = eventKey;
-  }
-
-  EntryData(String barcode) {
-    this.barcode = barcode;
-    this.token = null;
-    this.customerKey = null;
-    this.eventKey = null;
+    this.rotatingToken = rotatingToken;
   }
 
   String getBarcode() {
@@ -55,6 +60,28 @@ final class EntryData implements Parcelable {
     return eventKey;
   }
 
+  String getRotatingToken() {
+    return rotatingToken;
+  }
+
+  boolean isRotatingPdf417() {
+    return getCustomerKey() != null;
+  }
+
+  boolean isQRCode() {
+    // v3 format doesn't include anything but barcode
+    if (getToken() == null && !TextUtils.isEmpty(getBarcode())) {
+      return getRotatingToken() == null || getRotatingToken().equals("barcode");
+    } else {
+      return false;
+    }
+  }
+
+  boolean isStaticPdf417() {
+    return getToken() == null && !TextUtils.isEmpty(getBarcode()) &&
+        getRotatingToken() != null && getRotatingToken().equals("rotating_symbology");
+  }
+
   @Override
   public int describeContents() {
     return 0;
@@ -66,6 +93,7 @@ final class EntryData implements Parcelable {
     dest.writeString(token);
     dest.writeString(customerKey);
     dest.writeString(eventKey);
+    dest.writeString(rotatingToken);
   }
 
   @Override
@@ -79,7 +107,7 @@ final class EntryData implements Parcelable {
 
     EntryData entryData = (EntryData) o;
 
-    if (!barcode.equals(entryData.barcode)) {
+    if (barcode != null ? !barcode.equals(entryData.barcode) : entryData.barcode != null) {
       return false;
     }
     if (token != null ? !token.equals(entryData.token) : entryData.token != null) {
@@ -89,7 +117,11 @@ final class EntryData implements Parcelable {
         : entryData.customerKey != null) {
       return false;
     }
-    return eventKey != null ? eventKey.equals(entryData.eventKey) : entryData.eventKey == null;
+    if (eventKey != null ? !eventKey.equals(entryData.eventKey) : entryData.eventKey != null) {
+      return false;
+    }
+    return rotatingToken != null ? rotatingToken.equals(entryData.rotatingToken)
+        : entryData.rotatingToken == null;
   }
 
   @Override
@@ -98,6 +130,7 @@ final class EntryData implements Parcelable {
     result = 31 * result + (token != null ? token.hashCode() : 0);
     result = 31 * result + (customerKey != null ? customerKey.hashCode() : 0);
     result = 31 * result + (eventKey != null ? eventKey.hashCode() : 0);
+    result = 31 * result + (rotatingToken != null ? rotatingToken.hashCode() : 0);
     return result;
   }
 
@@ -108,8 +141,11 @@ final class EntryData implements Parcelable {
       String token = source.readString();
       String customerKey = source.readString();
       String eventKey = source.readString();
+      String rotatingToken = source.readString();
       EntryData entryData;
-      if (token != null && token.length() > 0) {
+      if (!TextUtils.isEmpty(rotatingToken)) {
+        entryData = new EntryData(barcode, token, customerKey, eventKey, rotatingToken);
+      } else if (!TextUtils.isEmpty(token)) {
         entryData = new EntryData(barcode, token, customerKey, eventKey);
       } else {
         entryData = new EntryData(barcode);

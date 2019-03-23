@@ -1,5 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!--
+<?xml version="1.0" encoding="utf-8"?><!--
    ~ Copyright 2019 Ticketmaster
    ~
    ~ Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,24 +16,28 @@
 <merge xmlns:android="http://schemas.android.com/apk/res/android"
   xmlns:app="http://schemas.android.com/apk/res-auto"
   xmlns:tools="http://schemas.android.com/tools"
+  android:theme="@style/ThemeOverlay.AppCompat.Light"
   android:layout_width="wrap_content"
   android:layout_height="wrap_content"
+  android:layout_gravity="center"
   android:minHeight="@dimen/sesdk_view_min_height"
   android:minWidth="@dimen/sesdk_view_min_width"
-  android:layout_gravity="center"
   tools:parentTag="FrameLayout">
 
   <!-- Error State -->
 
   <LinearLayout
     android:id="@+id/errorLinearLayout"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:minHeight="110dp"
+    android:minWidth="200dp"
     android:padding="10dp"
     android:background="@drawable/background"
+    android:layout_gravity="center"
     android:gravity="center"
     android:orientation="vertical"
-    tools:visibility="gone">
+    tools:visibility="visible">
 
     <FrameLayout
       android:id="@+id/errorImageFrameLayout"
@@ -57,6 +60,7 @@
       android:layout_width="match_parent"
       android:layout_height="0dp"
       android:layout_weight="1"
+      android:textSize="14sp"
       android:ellipsize="end"
       android:gravity="center_horizontal"
       android:maxLength="60"
@@ -72,6 +76,7 @@
     android:padding="8dp"
     android:background="@drawable/background"
     android:scaleType="fitXY"
+    tools:visibility="gone"
     tools:src="@drawable/pdf417_placeholder" />
 
   <View
@@ -94,7 +99,7 @@
     android:layout_height="24dp"
     android:layout_gravity="bottom|end"
     android:background="@null"
-    app:srcCompat="@drawable/ic_overflow" />
+    android:src="@drawable/ic_overflow" />
 
   <ImageView
     android:id="@+id/qrImageView"
@@ -107,13 +112,15 @@
     tools:src="@drawable/qr_placeholder"
     tools:visibility="gone" />
 
-  <view
+  <ImageView
     android:id="@+id/loadingView"
-    class="com.ticketmaster.presence.SecureEntryView$LoadingView"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_gravity="center"
-    android:padding="8dp"
+    android:padding="1dp"
+    android:background="@drawable/background"
+    android:scaleType="fitXY"
+    android:src="@drawable/loading"
     tools:visibility="gone" />
 
 </merge>

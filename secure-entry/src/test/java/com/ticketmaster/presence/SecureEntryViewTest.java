@@ -15,6 +15,7 @@ package com.ticketmaster.presence;
     limitations under the License.
  */
 
+import static junit.framework.TestCase.assertTrue;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -23,7 +24,8 @@ import static org.junit.Assert.assertNull;
 import android.content.Context;
 import android.util.AttributeSet;
 
-import org.junit.Ignore;
+import java.util.Calendar;
+
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.Robolectric;
@@ -38,11 +40,14 @@ import org.robolectric.RuntimeEnvironment;
 @RunWith(RobolectricTestRunner.class)
 public class SecureEntryViewTest {
 
-  private static final String ROTATING_PAYLOAD = "eyJiIjoiNDg2ODg2OTg3Nzc1MTAwOWEiLCJ0IjoiVE06OjAzOjo3dXhiOWxhZ3FjenNwc2RicGRqaDEwbjVhY3hzYzJyYnc2ZzB6cTBrbXVtOGRsY3A2IiwiY2siOiJlZTlmOWZjMDA0NjE0MjE5YzY5YmM5ZjA2MzAxOTlkY2I5YjY3N2JmIn0=";
-  private static final String STATIC_PAYLOAD = "eyJiIjoiNDg2ODg2OTg3Nzc1MTAwOWEifQ==";
+  private static final String V3_ROTATING_TOKEN = "eyJiIjoiNDg2ODg2OTg3Nzc1MTAwOWEiLCJ0IjoiVE06OjAzOjo3dXhiOWxhZ3FjenNwc2RicGRqaDEwbjVhY3hzYzJyYnc2ZzB6cTBrbXVtOGRsY3A2IiwiY2siOiJlZTlmOWZjMDA0NjE0MjE5YzY5YmM5ZjA2MzAxOTlkY2I5YjY3N2JmIn0=";
+  private static final String V3_QR_CODE_TOKEN = "eyJiIjoiNDg2ODg2OTg3Nzc1MTAwOWEifQ==";
+  private static final String V4_STATIC_PDF417_TOKEN = "eyJiIjoiODMwNTM2NjY1MTU4ayIsInJ0Ijoicm90YXRpbmdfc3ltYm9sb2d5In0=";
+  private static final String V4_QR_CODE = "eyJiIjoiMDg2NzM0NjQ3NjA0MTYxNmEiLCJydCI6ImJhcmNvZGUifQ==";
+  private static final String V4_ROTATING_TOKEN = "eyJiIjoiODUwMDYxNTcwMjU3USIsInQiOiJCQUlBV0xGYml6dU9FUUFBQUFBQUFBQUFBQUNqdXh3dTlEZXpieFRQbktjOFRhVkxabFpPQ3pYYXh4YWtKMWdWIiwiY2siOiJkN2ZhMGEwZTc4NzJhYzVkNDY2MjhlMmY5YWZkMDExMWVjOGU4N2JmIiwiZWsiOiI5YTE2MDUwOTc3OWU2MDhhZGZlZTg0YmQyN2QwODc3YTVjY2U5MTY2IiwicnQiOiJyb3RhdGluZ19zeW1ib2xvZ3kifQ==";
 
   @Test
-  public void initWithDefaultAttributeSet_ShouldSet_DefaultBrandingColor() {
+  public void init_With_Default_AttributeSet_Should_Apply_DefaultBrandingColor() {
 
     // given
     Context context = RuntimeEnvironment.application;
@@ -63,16 +68,15 @@ public class SecureEntryViewTest {
       aren't comprehensive when it comes to resources.
    */
   @Test
-  @Ignore
-  public void initWithCustomAttributeSet_ShouldSet_CustomBrandingColor() {
+  public void init_With_Custom_AttributeSet_Should_Apply_CustomBrandingColor() {
 
     // given
     Context context = RuntimeEnvironment.application;
-    int resourceIdentifider = context.getResources()
+    int resourceIdentifier = context.getResources()
         .getIdentifier("branding_color", "attr", "com.ticketmaster.presence");
 
     AttributeSet attributeSet = Robolectric.buildAttributeSet()
-        .addAttribute(resourceIdentifider, "@color/testing_color")
+        .addAttribute(resourceIdentifier, "@color/testing_color")
         .build();
 
     // when
@@ -84,66 +88,187 @@ public class SecureEntryViewTest {
 
   }
 
+  // not much value here, but for completeness public api should be checked that its working
   @Test
-  public void setToken_WithGoodRotatingData_ShouldDecodeToken() {
+  public void setBrandingColor_Should_Set_BrandingColor() {
+    // given
+    Context context = RuntimeEnvironment.application;
+    SecureEntryView secureEntryView = new SecureEntryView(context);
+
+    // when
+    secureEntryView.setBrandingColor(context.getResources().getColor(R.color.testing_color));
+
+    // then
+    assertEquals(context.getResources().getColor(R.color.testing_color),
+        secureEntryView.getBrandingColor());
+  }
+
+  @Test
+  public void setErrorMessage_Should_Set_ErrorMessage() {
+    // given
+    Context context = RuntimeEnvironment.application;
+    SecureEntryView secureEntryView = new SecureEntryView(context);
+
+    // when
+    secureEntryView.setErrorText("Custom error text");
+
+    // then
+    assertEquals("Custom error text", secureEntryView.getStateMessage());
+  }
+
+  @Test
+  public void setToken_With_V3RotatingData_Should_Create_EntryData() {
     // given
     SecureEntryView secureEntryView = new SecureEntryView(RuntimeEnvironment.application);
 
     // when
-    secureEntryView.setToken(ROTATING_PAYLOAD);
+    secureEntryView.setToken(V3_ROTATING_TOKEN);
 
     // then
     EntryData entryData = secureEntryView.getEntryData();
+    assertTrue(entryData.isRotatingPdf417());
     assertEquals("4868869877751009a", entryData.getBarcode());
     assertEquals("TM::03::7uxb9lagqczspsdbpdjh10n5acxsc2rbw6g0zq0kmum8dlcp6", entryData.getToken());
     assertEquals("ee9f9fc004614219c69bc9f0630199dcb9b677bf", entryData.getCustomerKey());
   }
 
   @Test
-  public void setToken_WithGoodStaticData_ShouldDecodeToken() {
+  public void setToken_With_V3QrData_Should_Create_EntryData() {
     // given
     SecureEntryView secureEntryView = new SecureEntryView(RuntimeEnvironment.application);
 
     // when
-    secureEntryView.setToken(STATIC_PAYLOAD);
+    secureEntryView.setToken(V3_QR_CODE_TOKEN);
 
     // then
     EntryData entryData = secureEntryView.getEntryData();
     assertEquals("4868869877751009a", entryData.getBarcode());
+    assertTrue(entryData.isQRCode());
     assertNull(entryData.getToken());
     assertNull(entryData.getCustomerKey());
   }
 
   @Test
-  @Ignore
-  public void setToken_WithRotatingData_ShouldUsePDF417Writer() {
+  public void setToken_With_V4StaticPdfData_Should_Create_EntryData() {
     // given
     SecureEntryView secureEntryView = new SecureEntryView(RuntimeEnvironment.application);
 
     // when
-    secureEntryView.setToken(ROTATING_PAYLOAD);
+    secureEntryView.setToken(V4_STATIC_PDF417_TOKEN);
 
     // then
-//        assertTrue(secureEntryView.getWriter() instanceof PDF417Writer);
-
+    EntryData entryData = secureEntryView.getEntryData();
+    assertTrue(entryData.isStaticPdf417());
+    assertEquals("830536665158k", entryData.getBarcode());
+    assertEquals("rotating_symbology", entryData.getRotatingToken());
+    assertNull(entryData.getToken());
+    assertNull(entryData.getCustomerKey());
   }
 
   @Test
-  @Ignore
-  public void setToken_WithRotatingData_ShouldUseQRCodeWriter() {
+  public void setToken_With_V4RotatingData_Should_Create_EntryData() {
     // given
     SecureEntryView secureEntryView = new SecureEntryView(RuntimeEnvironment.application);
 
     // when
-    secureEntryView.setToken(STATIC_PAYLOAD);
+    secureEntryView.setToken(V4_ROTATING_TOKEN);
 
     // then
-//        assertTrue(secureEntryView.getWriter() instanceof QRCodeWriter);
-
+    EntryData entryData = secureEntryView.getEntryData();
+    assertTrue(entryData.isRotatingPdf417());
+    assertEquals("850061570257Q", entryData.getBarcode());
+    assertEquals("rotating_symbology", entryData.getRotatingToken());
+    assertEquals("BAIAWLFbizuOEQAAAAAAAAAAAACjuxwu9DezbxTPnKc8TaVLZlZOCzXaxxakJ1gV",
+        entryData.getToken());
+    assertEquals("d7fa0a0e7872ac5d46628e2f9afd0111ec8e87bf", entryData.getCustomerKey());
+    assertEquals("9a160509779e608adfee84bd27d0877a5cce9166", entryData.getEventKey());
   }
 
   @Test
-  public void setToken_WithNullToken_ShouldSet_ErrorStateMessageNoToken() {
+  public void setToken_With_V4QrCodeData_Should_Create_EntryData() {
+    // given
+    SecureEntryView secureEntryView = new SecureEntryView(RuntimeEnvironment.application);
+
+    // when
+    secureEntryView.setToken(V4_QR_CODE);
+
+    // then
+    EntryData entryData = secureEntryView.getEntryData();
+    assertTrue(entryData.isQRCode());
+    assertEquals("0867346476041616a", entryData.getBarcode());
+    assertEquals("barcode", entryData.getRotatingToken());
+  }
+
+  @Test
+  public void generate_PdfBitmap_With_V3RotatingData_Should_Create_Pdf417Bitmap() {
+    // given
+    SecureEntryView secureEntryView = new SecureEntryView(RuntimeEnvironment.application);
+
+    // when
+    secureEntryView.decodeToken(V3_ROTATING_TOKEN);
+    secureEntryView.generatePdfBitmap();
+
+    // then
+    assertNotNull(secureEntryView.getPdf417Bitmap());
+  }
+
+  @Test
+  public void generate_PdfBitmap_With_V4RotatingData_Should_Create_Pdf417Bitmap() {
+    // given
+    SecureEntryView secureEntryView = new SecureEntryView(RuntimeEnvironment.application);
+
+    // when
+    secureEntryView.decodeToken(V4_ROTATING_TOKEN);
+    secureEntryView.generatePdfBitmap();
+
+    // then
+    assertNotNull(secureEntryView.getPdf417Bitmap());
+  }
+
+  @Test
+  public void generate_QrCodeBitmap_With_V3StaticData_Should_Create_QrCodeBitmap() {
+    // given
+    SecureEntryView secureEntryView = new SecureEntryView(RuntimeEnvironment.application);
+
+    // when
+    secureEntryView.decodeToken(V3_QR_CODE_TOKEN);
+    secureEntryView.generateQrCodeBitmap();
+
+    // then
+    assertNotNull(secureEntryView.getQrCodeBitmap());
+  }
+
+  @Test
+  public void getNewOTP_With_V3RotatingData_Should_Create_Expected_MessageToEncode() {
+    // given
+    SecureEntryView secureEntryView = new SecureEntryView(RuntimeEnvironment.application);
+
+    // when
+    secureEntryView.decodeToken(V3_ROTATING_TOKEN);
+    String messageToEncode = secureEntryView.getNewOTP(Calendar.getInstance().getTime());
+
+    // then
+    assertNotNull(messageToEncode);
+    assertEquals(messageToEncode.split("::").length, 4);
+  }
+
+  @Test
+  public void getNewOTP_With_V4RotatingData_Should_Create_Expected_MessageToEncode() {
+    // given
+    SecureEntryView secureEntryView = new SecureEntryView(RuntimeEnvironment.application);
+
+    // when
+    secureEntryView.decodeToken(V4_ROTATING_TOKEN);
+    String messageToEncode = secureEntryView.getNewOTP(Calendar.getInstance().getTime());
+
+    // then
+    assertNotNull(messageToEncode);
+    assertEquals(messageToEncode.split("::").length, 3);
+  }
+
+  // TODO: check this again, is it useful?
+  @Test
+  public void setToken_With_Null_Should_Have_DefaultErrorMessage() {
     // given
     Context context = RuntimeEnvironment.application;
     SecureEntryView secureEntryView = new SecureEntryView(context);
@@ -156,8 +281,24 @@ public class SecureEntryViewTest {
         secureEntryView.getStateMessage());
   }
 
+  // TODO: check this again, is it useful?
   @Test
-  public void setToken_WithBadToken_ShouldSet_ErrorStateMessageInvalidToken() {
+  public void setToken_With_Null_Should_Have_CustomErrorMessage() {
+    // given
+    Context context = RuntimeEnvironment.application;
+    SecureEntryView secureEntryView = new SecureEntryView(context);
+
+    // when
+    secureEntryView.setErrorText("Hello, World!");
+    secureEntryView.setToken(null);
+
+    // then
+    assertEquals("Hello, World!", secureEntryView.getStateMessage());
+  }
+
+  // TODO: check this again, is it useful?
+  @Test
+  public void setToken_With_InvalidJson_Should_Have_DefaultErrorMessage() {
     // given
     Context context = RuntimeEnvironment.application;
     SecureEntryView secureEntryView = new SecureEntryView(context);
@@ -171,7 +312,67 @@ public class SecureEntryViewTest {
   }
 
   @Test
-  public void setToken_With16DigitBarcodeContainingZeros_ShouldSetEntryData() {
+  public void setToken_With_12DigitBarcode_Should_Create_EntryData() {
+    // given
+    Context context = RuntimeEnvironment.application;
+    SecureEntryView secureEntryView = new SecureEntryView(context);
+
+    // when
+    secureEntryView.setToken("486886987775a");
+
+    // then
+    EntryData entryData = secureEntryView.getEntryData();
+    assertNotNull(entryData);
+    assertEquals("486886987775a", entryData.getBarcode());
+  }
+
+  @Test
+  public void setToken_With_13DigitBarcode_Should_Create_EntryData() {
+    // given
+    Context context = RuntimeEnvironment.application;
+    SecureEntryView secureEntryView = new SecureEntryView(context);
+
+    // when
+    secureEntryView.setToken("4868869877751a");
+
+    // then
+    EntryData entryData = secureEntryView.getEntryData();
+    assertNotNull(entryData);
+    assertEquals("4868869877751a", entryData.getBarcode());
+  }
+
+  @Test
+  public void setToken_With_14DigitBarcode_Should_Create_EntryData() {
+    // given
+    Context context = RuntimeEnvironment.application;
+    SecureEntryView secureEntryView = new SecureEntryView(context);
+
+    // when
+    secureEntryView.setToken("48688698777510a");
+
+    // then
+    EntryData entryData = secureEntryView.getEntryData();
+    assertNotNull(entryData);
+    assertEquals("48688698777510a", entryData.getBarcode());
+  }
+
+  @Test
+  public void setToken_With_15DigitBarcode_Should_Create_EntryData() {
+    // given
+    Context context = RuntimeEnvironment.application;
+    SecureEntryView secureEntryView = new SecureEntryView(context);
+
+    // when
+    secureEntryView.setToken("486886987775100a");
+
+    // then
+    EntryData entryData = secureEntryView.getEntryData();
+    assertNotNull(entryData);
+    assertEquals("486886987775100a", entryData.getBarcode());
+  }
+
+  @Test
+  public void setToken_With_16DigitBarcode_Should_Create_EntryData() {
     // given
     Context context = RuntimeEnvironment.application;
     SecureEntryView secureEntryView = new SecureEntryView(context);
@@ -186,8 +387,37 @@ public class SecureEntryViewTest {
   }
 
   @Test
-  @Ignore
-  public void setToken_WithValidBase64_ErrorStateMessageInvalidToken() {
+  public void setToken_With_17DigitBarcode_Should_Create_EntryData() {
+    // given
+    Context context = RuntimeEnvironment.application;
+    SecureEntryView secureEntryView = new SecureEntryView(context);
+
+    // when
+    secureEntryView.setToken("48688698777510094a");
+
+    // then
+    EntryData entryData = secureEntryView.getEntryData();
+    assertNotNull(entryData);
+    assertEquals("48688698777510094a", entryData.getBarcode());
+  }
+
+  @Test
+  public void setToken_With_18DigitBarcode_Should_Create_EntryData() {
+    // given
+    Context context = RuntimeEnvironment.application;
+    SecureEntryView secureEntryView = new SecureEntryView(context);
+
+    // when
+    secureEntryView.setToken("486886987775100944a");
+
+    // then
+    EntryData entryData = secureEntryView.getEntryData();
+    assertNotNull(entryData);
+    assertEquals("486886987775100944a", entryData.getBarcode());
+  }
+
+  @Test
+  public void setToken_With_InvalidJson_Should_Not_Create_EntryData() {
     // given
     Context context = RuntimeEnvironment.application;
     SecureEntryView secureEntryView = new SecureEntryView(context);
@@ -196,12 +426,11 @@ public class SecureEntryViewTest {
     secureEntryView.setToken("81948194819481f=");
 
     // then
-    assertEquals(context.getResources().getString(R.string.reload_ticket),
-        secureEntryView.getStateMessage());
+    assertNull(secureEntryView.getEntryData());
   }
 
   @Test
-  public void setToken_WithValidBase64TokenAndInvalidJson_ShouldSetEntryData() {
+  public void setToken_With_ValidBase64TokenAndInvalidJson_Should_Create_EntryData() {
 
     // given
     Context context = RuntimeEnvironment.application;
@@ -217,47 +446,17 @@ public class SecureEntryViewTest {
   }
 
   @Test
-  @Ignore
-  public void initWithBadBase64EncodedToken_ShouldSet_ErrorStateMessageInvalidToken() {
-    // given
-    Context context = RuntimeEnvironment.application;
-    SecureEntryView secureEntryView = new SecureEntryView(context);
+  public void decodedSecret_Should_Match_ExpectedValue() {
 
-    // when
-    secureEntryView.setToken("0");
-
-    // then
-    assertEquals(context.getResources().getString(R.string.reload_ticket),
-        secureEntryView.getStateMessage());
-  }
-
-  // not much value here, but for completeness public api should be checked that its working
-  @Test
-  public void setBrandingColor_ShouldSet_BrandingColorCorrectly() {
-    // given
-    Context context = RuntimeEnvironment.application;
-    SecureEntryView secureEntryView = new SecureEntryView(context);
-
-    // when
-    secureEntryView.setBrandingColor(context.getResources().getColor(R.color.testing_color));
-
-    // then
-    assertEquals(context.getResources().getColor(R.color.testing_color),
-        secureEntryView.getBrandingColor());
-  }
-
-  @Test
-  @Ignore
-  public void secretDecoded_ShouldMatch_ExpectedValue() {
-
-    byte [] expected = {69, -76, 103, 60, -29, -36, -96, -91, 15, -69, 41, -50, -90, -82, 62, -4, -63, -46, -118, -68};
+    byte[] expected = {69, -76, 103, 60, -29, -36, -96, -91, 15, -69, 41, -50, -90, -82, 62, -4,
+        -63, -46, -118, -68};
     String secret = "45b4673ce3dca0a50fbb29cea6ae3efcc1d28abc";
 
     // given
     Context context = RuntimeEnvironment.application;
     SecureEntryView secureEntryView = new SecureEntryView(context);
 
-    byte [] actual = secureEntryView.hexStringToByteArray(secret);
+    byte[] actual = secureEntryView.hexStringToByteArray(secret);
 
     assertArrayEquals(expected, actual);
   }

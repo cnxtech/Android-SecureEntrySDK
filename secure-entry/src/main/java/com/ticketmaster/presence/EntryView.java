@@ -16,7 +16,9 @@ package com.ticketmaster.presence;
  */
 
 
+import android.graphics.Bitmap;
 import android.support.annotation.ColorRes;
+import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 
 /**
@@ -34,6 +36,14 @@ interface EntryView {
   void setToken(String token);
 
   /**
+   * Call to change the underlying data in the PDF417 ticket.
+   *
+   * @param token Base64 encoded data mapping to EntryData (below)
+   * @param errorText optional error message for token parsing
+   */
+  void setToken(String token, @Nullable String errorText);
+
+  /**
    * Call to change the color of the animation displaying over the ticket.
    * Note: this will cause the view to be redrawn.
    *
@@ -49,4 +59,13 @@ interface EntryView {
    * @param errorText text to display below the error icon
    */
   void setErrorText(@Nullable String errorText);
+
+
+  /**
+   * Call to change the error state when an error should be explicitly set.
+   * Note: calling this hides all other views except the error views
+   * @param errorText text to display below the error icon
+   * @param errorIcon icon to show as the error icon
+   */
+  void showError(@Nullable String errorText, @NonNull Bitmap errorIcon);
 }

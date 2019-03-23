@@ -14,9 +14,15 @@
    ~ See the License for the specific language governing permissions and
    ~ limitations under the License.
 -->
-<resources>
-  <declare-styleable name="SecureEntryView">
-    <attr format="reference|color" name="branding_color" />
-    <attr format="reference|string" name="error_text" />
-  </declare-styleable>
-</resources>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+  xmlns:app="http://schemas.android.com/apk/res-auto"
+  xmlns:tools="http://schemas.android.com/tools"
+  android:id="@+id/nav_graph"
+  app:startDestination="@id/playgroundFragment">
+
+  <fragment
+    android:id="@+id/playgroundFragment"
+    android:name="com.ticketmaster.presence.secure_entry_demo.fragment.PlaygroundFragment"
+    tools:layout="@layout/fragment_playground" />
+
+</navigation>

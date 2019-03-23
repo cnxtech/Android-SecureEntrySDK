@@ -25,7 +25,7 @@ publishing {
     }
 }
 
-ext{
+ext {
     bintrayRepo = 'maven'
     bintrayName = 'secure-entry'
 
@@ -37,7 +37,7 @@ ext{
 
     siteUrl = 'https://github.com/ticketmaster/Android-SecureEntrySDK'
     gitUrl = 'https://github.com/ticketmaster/Android-SecureEntrySDK.git'
-    libraryVersion = '1.0.4'
+    libraryVersion = '1.0.5'
 
     organization = 'ticketmaster'
     developerId = 'kylejablonski'

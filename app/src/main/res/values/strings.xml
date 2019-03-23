@@ -15,29 +15,7 @@
    ~ limitations under the License.
 -->
 <resources>
-  <string name="app_name">SecureEntryAndroid</string>
-  <string name="secure_entry_welcome">Welcome to the SecureEntrySDK sample application. You can render tickets using this SecureEntryView in your application.</string>
-  <string name="static_normal">Static</string>
-  <string name="static_sized">Static (sized)</string>
-  <string name="static_full_width">Static (full-width)</string>
-  <string name="static_no_token">Static (no token)</string>
-  <string name="static_bad_token">Static (invalid token)</string>
-
-  <string name="rotating_normal">Rotating</string>
-  <string name="rotating_sized">Rotating (sized)</string>
-  <string name="rotating_full_width">Rotating (full-width)</string>
-  <string name="rotating_no_token">Rotating (no token)</string>
-  <string name="rotating_bad_token">Rotating (invalid token)</string>
-  <string name="information">Information</string>
-  <string name="branding_color">Branding Color</string>
-
-  <string name="custom_error_text">Sorry, you need to reload your ticket! This is a custom error that will truncate after 60 characters so make sure it fits the length.</string>
-
-  <string-array name="titles">
-    <item>Rotating</item>
-    <item>Static</item>
-    <item>Tickets</item>
-  </string-array>
+  <string name="app_name">Secure Entry SDK</string>
 
   <string-array name="colors">
     <item>Red</item>
@@ -60,4 +38,21 @@
     <item>Grey</item>
     <item>Blue grey</item>
   </string-array>
+
+  <!-- Playground Fragment -->
+  <string name="try_it">Try It!</string>
+  <string name="rotating_title">Rotating PDF417</string>
+  <string name="rotating_description">Display rotating PDF417 with toggle to QR Code</string>
+  <string name="qr_title">QR Code</string>
+  <string name="qr_description">Display static QR Code</string>
+  <string name="static_pdf417_title">Static PDF417</string>
+  <string name="static_pdf417_description">Display static PDF417 with toggle to QR Code</string>
+  <string name="error_state">Error State</string>
+  <string name="error_state_desc">Display error state</string>
+  <string name="loading_title">Loading State</string>
+  <string name="loading_description">Display loading state</string>
+  <string name="playground">Playground</string>
+  <string name="tickets">Tickets</string>
+  <string name="branding_color_title">Branding Color</string>
+  <string name="branding_color_description">Configures the color of the animation views</string>
 </resources>

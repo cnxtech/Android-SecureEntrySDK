@@ -27,15 +27,16 @@ import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel;
 import android.animation.Animator;
 import android.animation.AnimatorInflater;
 import android.animation.AnimatorListenerAdapter;
-import android.animation.AnimatorSet;
 import android.animation.ObjectAnimator;
+import android.animation.ValueAnimator;
 import android.content.Context;
 import android.content.res.TypedArray;
 import android.graphics.Bitmap;
-import android.graphics.Canvas;
+import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.graphics.Matrix;
-import android.graphics.Movie;
+import android.graphics.Typeface;
+import android.graphics.drawable.AnimationDrawable;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.Handler;
@@ -44,8 +45,8 @@ import android.os.Looper;
 import android.os.Parcel;
 import android.os.Parcelable;
 import android.os.Process;
-import android.os.SystemClock;
 import android.support.annotation.ColorInt;
+import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.annotation.VisibleForTesting;
 import android.text.TextUtils;
@@ -64,7 +65,6 @@ import com.ticketmaster.presence.time.SecureEntryClock;
 import com.ticketmaster.presence.totp.OTPAlgorithm;
 import com.ticketmaster.presence.totp.TOTP;
 
-import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.Calendar;
 import java.util.Date;
@@ -83,13 +83,14 @@ import org.json.JSONObject;
 
 public final class SecureEntryView extends FrameLayout implements EntryView, View.OnClickListener {
 
+  private static final String TAG = SecureEntryView.class.getSimpleName();
+
   private static final AccelerateDecelerateInterpolator ANIMATION_BAR_INTERPOLATOR
       = new AccelerateDecelerateInterpolator();
 
-  private static final int BACKGROUND_ANIMATION_DURATION = 700;
-  private static final int BACKGROUND_ANIMATION_DELAY_DURATION = 800;
-  private static final int FOREGROUND_ANIMATION_DURATION = 600;
-  private static final int FOREGROUND_ANIMATION_DELAY_DURATION = 900;
+  private static final int BAR_ANIMATION_DURATION = 1500;
+  private static final int BACKGROUND_ANIMATION_DELAY = 100;
+  private static final int FOREGROUND_ANIMATION_DELAY = 300;
 
   private static final long ROTATION_INTERVAL = 15_000L;
   private static final long FALLBACK_DELAY = 10_000L;
@@ -112,8 +113,8 @@ public final class SecureEntryView extends FrameLayout implements EntryView, Vie
   private View backgroundBarView;
   private View foregroundBarView;
   private ImageButton toggleImageButton;
-  private AnimatorSet backgroundAnimator;
-  private AnimatorSet foregroundAnimator;
+  private ObjectAnimator backgroundAnimator;
+  private ObjectAnimator foregroundAnimator;
   private Animator qrCodeEnterAnimator;
   private Animator qrCodeExitAnimator;
   private Animator pdf417EnterAnimator;
@@ -126,7 +127,7 @@ public final class SecureEntryView extends FrameLayout implements EntryView, Vie
   private int qrCodeBitmapWidth;
   private int qrCodeBitmapHeight;
   private ImageView qrCodeImageView;
-  private LoadingView loadingView;
+  private ImageView loadingView;
 
   // Errors
   private LinearLayout errorLinearLayout;
@@ -143,6 +144,9 @@ public final class SecureEntryView extends FrameLayout implements EntryView, Vie
   private boolean viewLoaded;
   private long toggledAtTime;
   private boolean animating;
+
+  private int translationXLimit;
+  private boolean attached;
 
   public SecureEntryView(Context context) {
     this(context, null);
@@ -173,16 +177,12 @@ public final class SecureEntryView extends FrameLayout implements EntryView, Vie
     errorImageFrameLayout = findViewById(R.id.errorImageFrameLayout);
     errorImageView = findViewById(R.id.errorImageView);
     errorTextView = findViewById(R.id.errorTextView);
+    Typeface typeface = Typeface
+        .createFromAsset(getContext().getAssets(), "fonts/Averta-Regular.otf");
+    errorTextView.setTypeface(typeface);
 
-    // hide all views except error view initially
-    toggleImageButton.setImageDrawable(getResources().getDrawable(R.drawable.ic_overflow));
-    showQRCodeViews(false);
-    showPdf417Views(false);
-    toggleImageButton.setVisibility(View.GONE);
-    loadingView.setVisibility(View.GONE);
-    foregroundBarView.setVisibility(View.GONE);
-    backgroundBarView.setVisibility(View.GONE);
-    errorLinearLayout.setVisibility(View.VISIBLE);
+    // hide all views except loading view initially
+    resetUI();
 
     // writers
     pdf417Writer = new PDF417Writer();
@@ -232,41 +232,60 @@ public final class SecureEntryView extends FrameLayout implements EntryView, Vie
    * {@link ImageView} or an error if an invalid token is detected.
    *
    * @param token Base64 encoded data mapping to EntryData (below)
+   * @see SecureEntryView#setToken(String, String)
    */
   @Override
   public void setToken(String token) {
+    setToken(token, null);
+  }
+
+  @Override
+  public void setToken(String token, @Nullable String errorText) {
+    removeCallbacksAndAnimations();
+    resetUI();
     this.token = token;
+    applyErrorText(errorText);
     this.toggled = false;
 
-    loadingView.setVisibility(View.VISIBLE);
-    errorLinearLayout.setVisibility(View.GONE);
-
-    entryData = decodeToken(token);
+    decodeToken(token);
     if (entryData != null) {
       // handle showing regular view state
-      if (TextUtils.isEmpty(entryData.getToken())) {
+      if (entryData.isQRCode()) {
         // QR code
-        showPdf417Views(false);
-        toggleImageButton.setVisibility(View.GONE);
         workerHandler.post(generateAndDisplayQRCodeBitmap);
+      } else if (entryData.isStaticPdf417()) {
+        // static PDF 417
+        workerHandler.post(generateAndDisplayStaticPdf417);
+        workerHandler.post(generateQRCodeRunnable);
       } else {
-        showQRCodeViews(false);
-        toggleImageButton.setVisibility(View.VISIBLE);
-        toggleImageButton.setImageDrawable(getResources().getDrawable(R.drawable.ic_overflow));
+        // rotating PDF417
         generateAndDisplayInitialPdf();
         workerHandler.post(generateQRCodeRunnable);
       }
     } else {
-      showPdf417Views(false);
-      showQRCodeViews(false);
-      loadingView.setVisibility(View.GONE);
-      errorLinearLayout.setVisibility(View.VISIBLE);
+      // error
+      showError(errorText, BitmapFactory.decodeResource(getResources(), R.drawable.ic_alert));
     }
   }
 
-  private EntryData decodeToken(String token) {
-    if (token == null || token.trim().length() == 0) {
-      return null;
+  private void resetUI() {
+    loadingView.setVisibility(View.VISIBLE);
+    if (!((AnimationDrawable) loadingView.getDrawable()).isRunning()) {
+      ((AnimationDrawable) loadingView.getDrawable()).start();
+    }
+    qrCodeImageView.setVisibility(View.GONE);
+    pdfImageView.setVisibility(View.GONE);
+    foregroundBarView.setVisibility(View.GONE);
+    backgroundBarView.setVisibility(View.GONE);
+    toggleImageButton.setVisibility(View.GONE);
+    toggleImageButton.setImageDrawable(getResources().getDrawable(R.drawable.ic_overflow));
+    errorLinearLayout.setVisibility(View.GONE);
+  }
+
+  @VisibleForTesting
+  void decodeToken(String token) {
+    if (TextUtils.isEmpty(token)) {
+      return;
     }
     try {
       byte[] bytes = Base64.decode(token, Base64.DEFAULT);
@@ -276,14 +295,17 @@ public final class SecureEntryView extends FrameLayout implements EntryView, Vie
       String entryToken = jsonObject.optString("t", null);
       String customerKey = jsonObject.optString("ck", null);
       String eventKey = jsonObject.optString("ek", null);
-      if (!TextUtils.isEmpty(entryToken)) {
-        return new EntryData(barcode, entryToken, customerKey, eventKey);
+      String rotatingToken = jsonObject.optString("rt", null);
+      if (!TextUtils.isEmpty(rotatingToken)) {
+        entryData = new EntryData(barcode, entryToken, customerKey, eventKey, rotatingToken);
+      } else if (!TextUtils.isEmpty(entryToken)) {
+        entryData = new EntryData(barcode, entryToken, customerKey, eventKey);
       } else {
-        return new EntryData(barcode);
+        entryData = new EntryData(barcode);
       }
     } catch (IllegalArgumentException | JSONException ex) {
       Log.e("SecureEntryView", "Error: " + ex.getMessage(), ex);
-      return fallbackDecodeToken(token);
+      entryData = fallbackDecodeToken(token);
     }
   }
 
@@ -304,10 +326,12 @@ public final class SecureEntryView extends FrameLayout implements EntryView, Vie
    */
   @Override
   public void setBrandingColor(@ColorInt int brandingColor) {
-    this.brandingColor = brandingColor;
-    backgroundBarView.setBackgroundColor(brandingColor);
+    final int color = Color
+        .rgb(Color.red(brandingColor), Color.green(brandingColor), Color.blue(brandingColor));
+    this.brandingColor = color;
+    backgroundBarView.setBackgroundColor(color);
     backgroundBarView.setAlpha(0.3f);
-    foregroundBarView.setBackgroundColor(brandingColor);
+    foregroundBarView.setBackgroundColor(color);
     invalidate();
   }
 
@@ -318,13 +342,28 @@ public final class SecureEntryView extends FrameLayout implements EntryView, Vie
    * @param errorText text to display below the error icon
    */
   @Override
+  @Deprecated
   public void setErrorText(@Nullable String errorText) {
-    this.errorText = errorText;
-    if (errorTextView != null) {
-      errorTextView.setText(errorText);
-    }
-    requestLayout();
-    invalidate();
+    applyErrorText(errorText);
+  }
+
+  @Override
+  public void showError(@Nullable String errorText, @NonNull Bitmap errorIcon) {
+    removeCallbacksAndAnimations();
+    applyErrorText(errorText);
+    pdfImageView.setAlpha(1f);
+    pdfImageView.setTranslationY(0f);
+    pdfImageView.setVisibility(View.GONE);
+    foregroundBarView.setVisibility(View.GONE);
+    backgroundBarView.setVisibility(View.GONE);
+    qrCodeImageView.setAlpha(1f);
+    qrCodeImageView.setTranslationY(0f);
+    qrCodeImageView.setVisibility(View.GONE);
+    loadingView.setVisibility(View.GONE);
+    ((AnimationDrawable) loadingView.getDrawable()).stop();
+    toggleImageButton.setVisibility(View.GONE);
+    errorImageView.setImageBitmap(errorIcon);
+    errorLinearLayout.setVisibility(View.VISIBLE);
   }
 
   @VisibleForTesting
@@ -342,17 +381,21 @@ public final class SecureEntryView extends FrameLayout implements EntryView, Vie
     return brandingColor;
   }
 
+  @VisibleForTesting
+  Bitmap getPdf417Bitmap() {
+    return pdf417Bitmap;
+  }
+
+  @VisibleForTesting
+  Bitmap getQrCodeBitmap() {
+    return qrCodeBitmap;
+  }
+
   @Override
   protected void onDetachedFromWindow() {
+    removeCallbacksAndAnimations();
     super.onDetachedFromWindow();
-    uiHandler.removeCallbacksAndMessages(null);
-    workerHandler.removeCallbacksAndMessages(null);
-
-    cancelBarAnimators();
-    cancelQrEnterAnimator();
-    cancelQrExitAnimator();
-    cancelPdfEnterAnimator();
-    cancelPdfEnterAnimator();
+    attached = false;
   }
 
   @Override
@@ -360,28 +403,27 @@ public final class SecureEntryView extends FrameLayout implements EntryView, Vie
     super.onAttachedToWindow();
     if (toggled) {
       postGenerateFallbackPdf417();
-    } else if (pdfImageView.getVisibility() == View.VISIBLE
-        && loadingView.getVisibility() != View.VISIBLE) {
-      runBarAnimators();
+    } else if (pdfImageView.getVisibility() == View.VISIBLE &&
+        loadingView.getVisibility() != View.VISIBLE && entryData != null &&
+        (entryData.isRotatingPdf417() || entryData.isStaticPdf417())) {
+      startAnimation();
+      if (viewLoaded) {
+        setToken(token);
+      }
     }
+    attached = true;
   }
 
   @Override
   protected void onWindowVisibilityChanged(int visibility) {
     super.onWindowVisibilityChanged(visibility);
+    boolean viewVisible = visibility == View.VISIBLE;
+    boolean loadingHidden = loadingView.getVisibility() != View.VISIBLE;
+    boolean pdfVisible = pdfImageView.getVisibility() == View.VISIBLE;
 
-    if (visibility == View.INVISIBLE) {
-
-      cancelBarAnimators();
-      cancelQrEnterAnimator();
-      cancelQrExitAnimator();
-      cancelPdfEnterAnimator();
-      cancelPdfEnterAnimator();
-    } else if (visibility == View.VISIBLE) {
-      if (pdfImageView.getVisibility() == View.VISIBLE
-          && loadingView.getVisibility() != View.VISIBLE) {
-        runBarAnimators();
-      }
+    if (viewVisible && attached && !animating && loadingHidden
+        && pdfVisible && entryData != null && !entryData.isQRCode() && !toggled) {
+      startAnimation();
     }
   }
 
@@ -403,6 +445,7 @@ public final class SecureEntryView extends FrameLayout implements EntryView, Vie
     ss.toggledAtTime = toggledAtTime;
     ss.brandingColor = brandingColor;
     ss.entryData = entryData;
+    ss.flipped = imageFlipped;
     return ss;
   }
 
@@ -414,9 +457,10 @@ public final class SecureEntryView extends FrameLayout implements EntryView, Vie
     toggled = ss.toggled;
     toggledAtTime = ss.toggledAtTime;
     setBrandingColor(ss.brandingColor);
-    setErrorText(ss.errorMessage);
+    applyErrorText(ss.errorMessage);
     token = ss.token;
     entryData = ss.entryData;
+    imageFlipped = ss.flipped;
   }
 
   @Override
@@ -454,6 +498,9 @@ public final class SecureEntryView extends FrameLayout implements EntryView, Vie
     final float viewAspectRatio = getSuggestedMinimumWidth() / (getSuggestedMinimumHeight() * 1f);
     final int maxHeight = (int) (maxWidth / viewAspectRatio);
     setMeasuredDimension(maxWidth, maxHeight);
+
+    translationXLimit = getMeasuredWidth() - getPaddingLeft() - getPaddingRight()
+        - getResources().getDimensionPixelSize(R.dimen.sesdk_background_animation_bar_width);
 
     // measure children dependent on view dimensions
     measureErrorLinearLayout();
@@ -505,13 +552,20 @@ public final class SecureEntryView extends FrameLayout implements EntryView, Vie
   }
 
   private void measureErrorLinearLayout() {
-    final int width = Math.max(0, getMeasuredWidth() - getPaddingLeft() - getPaddingRight());
+    final int parentWidth = Math.max(0, getMeasuredWidth() - getPaddingLeft() - getPaddingRight());
+    final int childWidth =
+        errorLinearLayout.getMinimumWidth() + errorLinearLayout.getPaddingLeft() + errorLinearLayout
+            .getPaddingRight();
     final int childWidthMeasureSpec = MeasureSpec.makeMeasureSpec(
-        width, MeasureSpec.EXACTLY);
-    final int height = Math.max(0, getMeasuredHeight()
-        - getPaddingTop() - getPaddingBottom());
+        Math.min(parentWidth, childWidth), MeasureSpec.EXACTLY);
+
+    final int parentHeight = Math
+        .max(0, getMeasuredHeight() - getPaddingTop() - getPaddingBottom());
+    final int childHeight =
+        errorLinearLayout.getMinimumHeight() + errorLinearLayout.getPaddingTop() + errorLinearLayout
+            .getPaddingBottom();
     final int childHeightMeasureSpec = MeasureSpec.makeMeasureSpec(
-        height, MeasureSpec.EXACTLY);
+        Math.min(parentHeight, childHeight), MeasureSpec.EXACTLY);
     errorLinearLayout.measure(childWidthMeasureSpec, childHeightMeasureSpec);
   }
 
@@ -526,7 +580,9 @@ public final class SecureEntryView extends FrameLayout implements EntryView, Vie
       cancelQrEnterAnimator();
       hideQrCodeViewsWithAnimation();
       showPdf417ViewsWithAnimation();
-      workerHandler.postDelayed(generateAndDisplayPdf417, ROTATION_INTERVAL);
+      if (entryData.isRotatingPdf417()) {
+        workerHandler.postDelayed(generateAndDisplayPdf417, ROTATION_INTERVAL);
+      }
 
     } else {
       toggled = true;
@@ -535,13 +591,40 @@ public final class SecureEntryView extends FrameLayout implements EntryView, Vie
       uiHandler.removeCallbacksAndMessages(null);
       workerHandler.removeCallbacksAndMessages(null);
       qrCodeImageView.setImageBitmap(qrCodeBitmap);
-      cancelBarAnimators();
+
       cancelPdfEnterAnimator();
       cancelQrExitAnimator();
       showQrCodeViewsWithAnimation();
       hidePdf417ViewsWithAnimation();
-      workerHandler.postDelayed(generateFallbackPdf417, FALLBACK_DELAY);
+      cancelBarAnimators();
+      if (entryData.isRotatingPdf417()) {
+        workerHandler.postDelayed(fallbackToRotatingPdf417, FALLBACK_DELAY);
+      } else {
+        uiHandler.postDelayed(fallbackToStaticPdf417, FALLBACK_DELAY);
+      }
     }
+  }
+
+  private void applyErrorText(String errorText){
+    if (!TextUtils.isEmpty(errorText)) {
+      this.errorText = errorText;
+    }
+    if (errorTextView != null) {
+      errorTextView.setText(this.errorText);
+    }
+    requestLayout();
+    invalidate();
+  }
+
+  private void removeCallbacksAndAnimations() {
+    uiHandler.removeCallbacksAndMessages(null);
+    workerHandler.removeCallbacksAndMessages(null);
+
+    cancelBarAnimators();
+    cancelQrEnterAnimator();
+    cancelQrExitAnimator();
+    cancelPdfEnterAnimator();
+    cancelPdfEnterAnimator();
   }
 
   private void cancelBarAnimators() {
@@ -560,8 +643,9 @@ public final class SecureEntryView extends FrameLayout implements EntryView, Vie
     }
   }
 
-  private void runBarAnimators() {
-    if (animating) {
+  private void startAnimation() {
+    if (animating || translationXLimit == 0 || !attached ||
+        getVisibility() != VISIBLE || getWindowVisibility() != VISIBLE) {
       return;
     }
     animating = true;
@@ -570,23 +654,17 @@ public final class SecureEntryView extends FrameLayout implements EntryView, Vie
   }
 
   private void runBackgroundBarAnimation() {
-    final int translationXLimit = getMeasuredWidth() - getPaddingLeft() - getPaddingRight()
-        - getResources().getDimensionPixelSize(R.dimen.sesdk_background_animation_bar_width);
 
     final ObjectAnimator translateXRight =
         ObjectAnimator.ofFloat(backgroundBarView, "translationX", 0, translationXLimit);
-    translateXRight.setDuration(BACKGROUND_ANIMATION_DURATION);
-
-    final ObjectAnimator translateXLeft =
-        ObjectAnimator.ofFloat(backgroundBarView, "translationX", translationXLimit, 0);
-    translateXLeft.setStartDelay(BACKGROUND_ANIMATION_DELAY_DURATION);
-    translateXLeft.setDuration(BACKGROUND_ANIMATION_DURATION);
+    translateXRight.setDuration(BAR_ANIMATION_DURATION);
+    translateXRight.setRepeatCount(ValueAnimator.INFINITE);
+    translateXRight.setRepeatMode(ValueAnimator.REVERSE);
+    translateXRight.setStartDelay(FOREGROUND_ANIMATION_DELAY + BACKGROUND_ANIMATION_DELAY);
+    translateXRight.setInterpolator(ANIMATION_BAR_INTERPOLATOR);
 
     if (backgroundAnimator == null) {
-      final AnimatorSet animator = new AnimatorSet();
-      animator.setInterpolator(ANIMATION_BAR_INTERPOLATOR);
-      animator.play(translateXRight).before(translateXLeft);
-      backgroundAnimator = animator;
+      backgroundAnimator = translateXRight;
     }
 
     backgroundAnimator.addListener(new AnimatorListenerAdapter() {
@@ -594,35 +672,22 @@ public final class SecureEntryView extends FrameLayout implements EntryView, Vie
       public void onAnimationCancel(Animator animation) {
         backgroundAnimator.removeAllListeners();
       }
-
-      @Override
-      public void onAnimationEnd(Animator animation) {
-        if (animating) {
-          translateXRight.setStartDelay(BACKGROUND_ANIMATION_DELAY_DURATION);
-          backgroundAnimator.start();
-        }
-      }
     });
     backgroundAnimator.start();
   }
 
   private void runForegroundBarAnimation() {
-    final int translationXLimit = getMeasuredWidth() - getPaddingLeft() - getPaddingRight()
-        - getResources().getDimensionPixelSize(R.dimen.sesdk_background_animation_bar_width);
-    final ObjectAnimator translateXLeft =
-        ObjectAnimator.ofFloat(foregroundBarView, "translationX", translationXLimit, 0);
-    translateXLeft.setStartDelay(FOREGROUND_ANIMATION_DELAY_DURATION);
-    translateXLeft.setDuration(FOREGROUND_ANIMATION_DURATION);
 
     final ObjectAnimator translateXRight =
         ObjectAnimator.ofFloat(foregroundBarView, "translationX", 0, translationXLimit);
-    translateXRight.setDuration(FOREGROUND_ANIMATION_DURATION);
+    translateXRight.setDuration(BAR_ANIMATION_DURATION);
+    translateXRight.setStartDelay(FOREGROUND_ANIMATION_DELAY);
+    translateXRight.setRepeatCount(ValueAnimator.INFINITE);
+    translateXRight.setRepeatMode(ValueAnimator.REVERSE);
+    translateXRight.setInterpolator(ANIMATION_BAR_INTERPOLATOR);
 
     if (foregroundAnimator == null) {
-      final AnimatorSet animator = new AnimatorSet();
-      animator.setInterpolator(ANIMATION_BAR_INTERPOLATOR);
-      animator.play(translateXRight).before(translateXLeft);
-      foregroundAnimator = animator;
+      foregroundAnimator = translateXRight;
     }
 
     foregroundAnimator.addListener(new AnimatorListenerAdapter() {
@@ -630,28 +695,17 @@ public final class SecureEntryView extends FrameLayout implements EntryView, Vie
       public void onAnimationCancel(Animator animation) {
         foregroundAnimator.removeAllListeners();
       }
-
-      @Override
-      public void onAnimationEnd(Animator animation) {
-        if (animating) {
-          translateXRight.setStartDelay(FOREGROUND_ANIMATION_DELAY_DURATION);
-          foregroundAnimator.start();
-        }
-      }
     });
     foregroundAnimator.start();
   }
 
-  private void showPdf417Views(boolean display) {
+  private void showPdf417Views() {
     pdfImageView.setAlpha(1f);
     pdfImageView.setTranslationY(0f);
-    pdfImageView.setVisibility(display ? View.VISIBLE : View.GONE);
-    foregroundBarView.setVisibility(display ? View.VISIBLE : View.GONE);
-    backgroundBarView.setVisibility(display ? View.VISIBLE : View.GONE);
-
-    if (display) {
-      runBarAnimators();
-    }
+    pdfImageView.setVisibility(View.VISIBLE);
+    foregroundBarView.setVisibility(View.VISIBLE);
+    backgroundBarView.setVisibility(View.VISIBLE);
+    startAnimation();
   }
 
   private void cancelPdfEnterAnimator() {
@@ -684,15 +738,15 @@ public final class SecureEntryView extends FrameLayout implements EntryView, Vie
         foregroundBarView.setVisibility(View.VISIBLE);
         backgroundBarView.setVisibility(View.VISIBLE);
 
-        runBarAnimators();
+        startAnimation();
       }
 
       @Override
       public void onAnimationCancel(Animator animation) {
-        qrCodeImageView.setAlpha(1f);
-        qrCodeImageView.setVisibility(View.VISIBLE);
-        foregroundBarView.setVisibility(View.GONE);
-        backgroundBarView.setVisibility(View.GONE);
+        pdfImageView.setAlpha(1f);
+        pdfImageView.setTranslationY(0f);
+        foregroundBarView.setVisibility(View.VISIBLE);
+        backgroundBarView.setVisibility(View.VISIBLE);
         pdf417EnterAnimator.removeAllListeners();
         cancelBarAnimators();
       }
@@ -722,18 +776,10 @@ public final class SecureEntryView extends FrameLayout implements EntryView, Vie
       public void onAnimationCancel(Animator animation) {
         pdfImageView.setAlpha(1f);
         pdfImageView.setVisibility(View.VISIBLE);
-        qrCodeImageView.setAlpha(0f);
-        qrCodeImageView.setVisibility(View.GONE);
         pdf417ExitAnimator.removeAllListeners();
       }
     });
     pdf417ExitAnimator.start();
-  }
-
-  private void showQRCodeViews(boolean display) {
-    qrCodeImageView.setAlpha(1f);
-    qrCodeImageView.setTranslationY(0f);
-    qrCodeImageView.setVisibility(display ? View.VISIBLE : View.GONE);
   }
 
   private void cancelQrEnterAnimator() {
@@ -766,9 +812,8 @@ public final class SecureEntryView extends FrameLayout implements EntryView, Vie
       @Override
       public void onAnimationCancel(Animator animation) {
         qrCodeImageView.setAlpha(1f);
+        qrCodeImageView.setTranslationY(0f);
         qrCodeImageView.setVisibility(View.VISIBLE);
-        foregroundBarView.setVisibility(View.GONE);
-        backgroundBarView.setVisibility(View.GONE);
         cancelBarAnimators();
       }
     });
@@ -816,8 +861,8 @@ public final class SecureEntryView extends FrameLayout implements EntryView, Vie
           source.setPixel(x, y, bitMatrix.get(x, y) ? Color.BLACK : Color.WHITE);
         }
       }
-      // rotate the bitmap vertically
-      if (writer instanceof PDF417Writer) {
+      // rotate the bitmap vertically for rotating PDF
+      if (entryData.isRotatingPdf417() && writer instanceof PDF417Writer) {
         final Matrix matrix = new Matrix();
         if (imageFlipped) {
           matrix.preScale(1, 1);
@@ -850,27 +895,21 @@ public final class SecureEntryView extends FrameLayout implements EntryView, Vie
           .syncTime(new SecureEntryClock.Callback() {
             @Override
             public void onComplete(long offset, Date now) {
-              String messageToEncode = getNewOTP(now);
-              pdf417Bitmap = generateBitmap(pdf417Writer, messageToEncode,
-                  BarcodeFormat.PDF_417,
-                  pdf417BitmapWidth,
-                  pdf417BitmapHeight,
-                  pdfHints);
-              uiHandler.post(displayInitialPdf417);
-              workerHandler.postDelayed(generateAndDisplayPdf417, ROTATION_INTERVAL);
+              workerHandler.post(generateAndDisplayInitialPdf417);
             }
 
             @Override
             public void onError() {
-              workerHandler.post(generateAndDisplayPdf417);
+              workerHandler.post(generateAndDisplayInitialPdf417);
             }
           });
     } else {
-      workerHandler.post(generateAndDisplayPdf417);
+      workerHandler.post(generateAndDisplayInitialPdf417);
     }
   }
 
-  private void generatePdfBitmap() {
+  @VisibleForTesting
+  void generatePdfBitmap() {
 
     Date now = getNow();
     final String messageToEncode;
@@ -895,7 +934,8 @@ public final class SecureEntryView extends FrameLayout implements EntryView, Vie
     return null;
   }
 
-  private String getNewOTP(Date now) {
+  @VisibleForTesting
+  String getNewOTP(Date now) {
 
     String otpMessage = entryData.getToken();
     String customerKey = entryData.getCustomerKey();
@@ -941,40 +981,74 @@ public final class SecureEntryView extends FrameLayout implements EntryView, Vie
     return data;
   }
 
+  /**
+   * Posts a runnable either immediately or based on the <code>toggledAtTime</code> and
+   * <code>FALLBACK_DELAY</code> to fallback to QR Code barcode from either static or rotating PDF.
+   *
+   * @see SecureEntryView#toggledAtTime
+   * @see SecureEntryView#FALLBACK_DELAY
+   */
   private void postGenerateFallbackPdf417() {
     final long toggledDiff = System.currentTimeMillis() - toggledAtTime;
     if (toggledDiff < FALLBACK_DELAY) {
-      workerHandler.postDelayed(generateFallbackPdf417, FALLBACK_DELAY - toggledDiff);
+      if (entryData.isStaticPdf417()) {
+        uiHandler.postDelayed(fallbackToStaticPdf417, FALLBACK_DELAY - toggledDiff);
+      } else {
+        workerHandler.postDelayed(fallbackToRotatingPdf417, FALLBACK_DELAY - toggledDiff);
+      }
     } else {
-      workerHandler.post(generateFallbackPdf417);
+      if (entryData.isStaticPdf417()) {
+        uiHandler.post(fallbackToStaticPdf417);
+      } else {
+        workerHandler.post(fallbackToRotatingPdf417);
+      }
     }
   }
+
+  private final Runnable generateAndDisplayInitialPdf417 = new Runnable() {
+    @Override
+    public void run() {
+      Date now = getNow();
+      if (now == null) {
+        now = new Date();
+      }
+      String messageToEncode = getNewOTP(now);
+      pdf417Bitmap = generateBitmap(pdf417Writer, messageToEncode,
+          BarcodeFormat.PDF_417,
+          pdf417BitmapWidth,
+          pdf417BitmapHeight,
+          pdfHints);
+      uiHandler.post(displayInitialPdf417);
+      workerHandler.postDelayed(generateAndDisplayPdf417, ROTATION_INTERVAL);
+    }
+  };
 
   private final Runnable displayInitialPdf417 = new Runnable() {
     @Override
     public void run() {
       loadingView.setVisibility(View.GONE);
+      ((AnimationDrawable) loadingView.getDrawable()).stop();
       toggleImageButton.setVisibility(View.VISIBLE);
       pdfImageView.setImageBitmap(pdf417Bitmap);
       if (!viewLoaded) {
+        viewLoaded = true;
         showPdf417ViewsWithAnimation();
       } else {
-        showPdf417Views(true);
+        showPdf417Views();
       }
-      viewLoaded = true;
     }
   };
 
-  private final Runnable generateFallbackPdf417 = new Runnable() {
+  private final Runnable fallbackToRotatingPdf417 = new Runnable() {
     @Override
     public void run() {
       generatePdfBitmap();
-      uiHandler.post(displayFallbackPDF417);
+      uiHandler.post(displayRotatingFallback);
       workerHandler.postDelayed(generateAndDisplayPdf417, ROTATION_INTERVAL);
     }
   };
 
-  private final Runnable displayFallbackPDF417 = new Runnable() {
+  private final Runnable displayRotatingFallback = new Runnable() {
     @Override
     public void run() {
       toggled = false;
@@ -998,10 +1072,15 @@ public final class SecureEntryView extends FrameLayout implements EntryView, Vie
     @Override
     public void run() {
       loadingView.setVisibility(View.GONE);
+      ((AnimationDrawable) loadingView.getDrawable()).stop();
       pdfImageView.setImageBitmap(pdf417Bitmap);
       if (!toggled) {
         toggleImageButton.setImageDrawable(getResources().getDrawable(R.drawable.ic_overflow));
-        showPdf417Views(true);
+        if (!viewLoaded) {
+          showPdf417ViewsWithAnimation();
+        } else {
+          showPdf417Views();
+        }
       } else {
         /*
           it's possible on rotation, displayPdf417 is called but the view is still toggled
@@ -1012,22 +1091,54 @@ public final class SecureEntryView extends FrameLayout implements EntryView, Vie
           workerHandler.post(generateAndDisplayQRCodeBitmap);
         } else {
           qrCodeImageView.setImageBitmap(qrCodeBitmap);
-          showQRCodeViews(true);
+          qrCodeImageView.setAlpha(1f);
+          qrCodeImageView.setTranslationY(0f);
+          qrCodeImageView.setVisibility(View.VISIBLE);
         }
         postGenerateFallbackPdf417();
       }
     }
   };
 
+  private final Runnable generateAndDisplayStaticPdf417 = new Runnable() {
+    @Override
+    public void run() {
+      if (pdf417Bitmap == null) {
+        pdf417Bitmap = generateBitmap(pdf417Writer, entryData.getBarcode(),
+            BarcodeFormat.PDF_417,
+            pdf417BitmapWidth,
+            pdf417BitmapHeight,
+            pdfHints);
+      }
+      uiHandler.post(displayInitialPdf417);
+    }
+  };
+
+  private final Runnable fallbackToStaticPdf417 = new Runnable() {
+    @Override
+    public void run() {
+      pdfImageView.setImageBitmap(pdf417Bitmap);
+      toggleImageButton.setImageDrawable(getResources().getDrawable(R.drawable.ic_overflow));
+      showPdf417ViewsWithAnimation();
+      hideQrCodeViewsWithAnimation();
+      toggled = false;
+    }
+  };
+
+  @VisibleForTesting
+  void generateQrCodeBitmap() {
+    if (qrCodeBitmap == null) {
+      qrCodeBitmap = generateBitmap(qrCodeWriter, entryData.getBarcode(),
+          BarcodeFormat.QR_CODE,
+          qrCodeBitmapWidth,
+          qrCodeBitmapHeight, qrHints);
+    }
+  }
+
   private final Runnable generateAndDisplayQRCodeBitmap = new Runnable() {
     @Override
     public void run() {
-      if (qrCodeBitmap == null) {
-        qrCodeBitmap = generateBitmap(qrCodeWriter, entryData.getBarcode(),
-            BarcodeFormat.QR_CODE,
-            qrCodeBitmapWidth,
-            qrCodeBitmapHeight, qrHints);
-      }
+      generateQrCodeBitmap();
       uiHandler.post(displayQRCode);
       viewLoaded = true;
     }
@@ -1036,10 +1147,7 @@ public final class SecureEntryView extends FrameLayout implements EntryView, Vie
   private final Runnable generateQRCodeRunnable = new Runnable() {
     @Override
     public void run() {
-      qrCodeBitmap = generateBitmap(qrCodeWriter, entryData.getBarcode(),
-          BarcodeFormat.QR_CODE,
-          qrCodeBitmapWidth,
-          qrCodeBitmapHeight, qrHints);
+      generateQrCodeBitmap();
     }
   };
 
@@ -1047,70 +1155,13 @@ public final class SecureEntryView extends FrameLayout implements EntryView, Vie
     @Override
     public void run() {
       loadingView.setVisibility(View.GONE);
+      ((AnimationDrawable) loadingView.getDrawable()).stop();
       qrCodeImageView.setImageBitmap(qrCodeBitmap);
-      showQRCodeViews(true);
+      qrCodeImageView.setAlpha(1f);
+      qrCodeImageView.setTranslationY(0f);
+      qrCodeImageView.setVisibility(View.VISIBLE);
     }
   };
-
-  /**
-   * Supports loading .gif from assets
-   */
-  protected static class LoadingView extends View {
-
-    private Movie movieGif;
-    private long gifStartTime;
-    private float scaleX;
-    private float scaleY;
-
-    public LoadingView(Context context) {
-      this(context, null);
-    }
-
-    public LoadingView(Context context, @Nullable AttributeSet attrs) {
-      this(context, attrs, 0);
-    }
-
-    public LoadingView(Context context, AttributeSet attrs, int defStyleAttr) {
-      super(context, attrs, defStyleAttr);
-
-      InputStream inputStream = getResources().openRawResource(R.raw.loading);
-      movieGif = Movie.decodeStream(inputStream);
-    }
-
-    @Override
-    protected void onDraw(Canvas canvas) {
-      canvas.scale(scaleX, scaleY);
-
-      long now = SystemClock.uptimeMillis();
-      if (gifStartTime == 0) {
-        gifStartTime = now;
-      }
-
-      if (movieGif != null) {
-
-        int duration = movieGif.duration();
-        if (duration == 0) {
-          duration = 1000;
-        }
-
-        int relTime = (int) ((now - gifStartTime) % duration);
-        movieGif.setTime(relTime);
-        movieGif.draw(canvas, 0, 0);
-        invalidate();
-      }
-    }
-
-    @Override
-    protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
-      super.onLayout(changed, left, top, right, bottom);
-      if (movieGif == null) {
-        return;
-      }
-      scaleX = getWidth() / (float) movieGif.width();
-      scaleY = getHeight() / (float) movieGif.height();
-    }
-
-  }
 
   /**
    * Saves the state of the view on orientation changes
@@ -1124,6 +1175,7 @@ public final class SecureEntryView extends FrameLayout implements EntryView, Vie
     private boolean loaded;
     private boolean toggled;
     private long toggledAtTime;
+    private boolean flipped;
 
     SavedState(Parcelable superState) {
       super(superState);
@@ -1138,6 +1190,7 @@ public final class SecureEntryView extends FrameLayout implements EntryView, Vie
       loaded = in.readInt() == 1;
       toggled = in.readInt() == 1;
       toggledAtTime = in.readLong();
+      flipped = in.readInt() == 1;
     }
 
     @Override
@@ -1150,6 +1203,7 @@ public final class SecureEntryView extends FrameLayout implements EntryView, Vie
       out.writeInt(loaded ? 1 : 0);
       out.writeInt(toggled ? 1 : 0);
       out.writeLong(toggledAtTime);
+      out.writeInt(flipped ? 1 : 0);
     }
 
     public static final Parcelable.Creator<SavedState> CREATOR

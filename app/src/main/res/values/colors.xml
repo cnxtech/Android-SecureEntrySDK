@@ -23,6 +23,12 @@
   <color name="customBrandingOrange">#ff9800</color>
   <color name="customBrandingTeal">#009688</color>
 
+  <color name="white">#FFFFFF</color>
+  <color name="grey_white">#f5f5f5</color>
+  <color name="text_color_primary">#dd000000</color>
+  <color name="text_color_secondary">#89000000</color>
+
+  <color name="transparent">#00000000</color>
 
   <!-- Material Design 500 colors -->
   <color name="red">#F44336</color>

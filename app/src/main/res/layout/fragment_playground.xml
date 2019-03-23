@@ -1,0 +1,223 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+   ~ Copyright 2019 Ticketmaster
+   ~
+   ~ Licensed under the Apache License, Version 2.0 (the "License");
+   ~ you may not use this file except in compliance with the License.
+   ~ You may obtain a copy of the License at
+   ~
+   ~     http://www.apache.org/licenses/LICENSE-2.0
+   ~
+   ~ Unless required by applicable law or agreed to in writing, software
+   ~ distributed under the License is distributed on an "AS IS" BASIS,
+   ~ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   ~ See the License for the specific language governing permissions and
+   ~ limitations under the License.
+-->
+<androidx.core.widget.NestedScrollView
+  xmlns:android="http://schemas.android.com/apk/res/android"
+  xmlns:app="http://schemas.android.com/apk/res-auto"
+  xmlns:tools="http://schemas.android.com/tools"
+  android:scrollbars="vertical"
+  android:layout_width="match_parent"
+  android:layout_height="wrap_content">
+  <androidx.constraintlayout.widget.ConstraintLayout
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <androidx.recyclerview.widget.RecyclerView
+      android:id="@+id/recyclerViewTickets"
+      android:layout_width="0dp"
+      android:layout_height="0dp"
+      android:clipToPadding="false"
+      app:layout_constraintBottom_toTopOf="@+id/linearLayoutOptions"
+      app:layout_constraintDimensionRatio="H,1.2:1"
+      app:layout_constraintLeft_toLeftOf="parent"
+      app:layout_constraintRight_toRightOf="parent"
+      app:layout_constraintTop_toTopOf="parent" />
+
+    <LinearLayout
+      android:id="@+id/linearLayoutOptions"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:background="@color/grey_white"
+      android:orientation="vertical"
+      app:layout_constraintLeft_toLeftOf="parent"
+      app:layout_constraintRight_toRightOf="parent"
+      app:layout_constraintBottom_toBottomOf="parent"
+      app:layout_constraintTop_toBottomOf="@+id/recyclerViewTickets">
+
+      <!-- Rotating -->
+      <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:padding="16dp"
+        android:minHeight="72dp">
+
+        <TextView
+          android:id="@+id/rotatingTitle"
+          android:layout_width="wrap_content"
+          android:layout_height="wrap_content"
+          android:text="@string/rotating_title"
+          android:textAppearance="@style/TextAppearance.MaterialComponents.Body1"
+          app:layout_constraintBottom_toTopOf="@+id/rotatingDescription"
+          app:layout_constraintHorizontal_bias="0"
+          app:layout_constraintLeft_toLeftOf="parent"
+          app:layout_constraintRight_toLeftOf="@+id/rotatingButton"
+          app:layout_constraintTop_toTopOf="parent" />
+        <TextView
+          android:id="@+id/rotatingDescription"
+          android:layout_width="wrap_content"
+          android:layout_height="wrap_content"
+          android:text="@string/rotating_description"
+          android:textAppearance="@style/TextAppearance.MaterialComponents.Caption"
+          app:layout_constraintBottom_toBottomOf="parent"
+          app:layout_constraintHorizontal_bias="0"
+          app:layout_constraintLeft_toLeftOf="parent"
+          app:layout_constraintRight_toLeftOf="@+id/rotatingButton"
+          app:layout_constraintTop_toBottomOf="@+id/rotatingTitle" />
+
+        <com.google.android.material.button.MaterialButton
+          android:id="@+id/rotatingButton"
+          style="@style/Widget.MaterialComponents.Button.TextButton"
+          android:layout_width="wrap_content"
+          android:layout_height="wrap_content"
+          android:text="@string/try_it"
+          app:layout_constraintBottom_toBottomOf="parent"
+          app:layout_constraintHorizontal_bias="1"
+          app:layout_constraintLeft_toLeftOf="parent"
+          app:layout_constraintRight_toRightOf="parent"
+          app:layout_constraintTop_toTopOf="parent" />
+      </androidx.constraintlayout.widget.ConstraintLayout>
+
+      <!-- Static QR Code -->
+      <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:padding="16dp"
+        android:minHeight="72dp">
+
+        <TextView
+          android:id="@+id/qrTitle"
+          android:layout_width="wrap_content"
+          android:layout_height="wrap_content"
+          android:text="@string/qr_title"
+          android:textAppearance="@style/TextAppearance.MaterialComponents.Body1"
+          app:layout_constraintBottom_toTopOf="@+id/qrDescription"
+          app:layout_constraintHorizontal_bias="0"
+          app:layout_constraintLeft_toLeftOf="parent"
+          app:layout_constraintRight_toLeftOf="@+id/qrButton"
+          app:layout_constraintTop_toTopOf="parent" />
+        <TextView
+          android:id="@+id/qrDescription"
+          android:layout_width="wrap_content"
+          android:layout_height="wrap_content"
+          android:text="@string/qr_description"
+          android:textAppearance="@style/TextAppearance.MaterialComponents.Caption"
+          app:layout_constraintBottom_toBottomOf="parent"
+          app:layout_constraintHorizontal_bias="0"
+          app:layout_constraintLeft_toLeftOf="parent"
+          app:layout_constraintRight_toLeftOf="@+id/qrButton"
+          app:layout_constraintTop_toBottomOf="@+id/qrTitle" />
+
+        <com.google.android.material.button.MaterialButton
+          android:id="@+id/qrButton"
+          style="@style/Widget.MaterialComponents.Button.TextButton"
+          android:layout_width="wrap_content"
+          android:layout_height="wrap_content"
+          android:text="@string/try_it"
+          app:layout_constraintBottom_toBottomOf="parent"
+          app:layout_constraintHorizontal_bias="1"
+          app:layout_constraintLeft_toLeftOf="parent"
+          app:layout_constraintRight_toRightOf="parent"
+          app:layout_constraintTop_toTopOf="parent" />
+      </androidx.constraintlayout.widget.ConstraintLayout>
+
+      <!-- Static PDF417-->
+      <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:padding="16dp"
+        android:minHeight="72dp">
+
+        <TextView
+          android:id="@+id/staticPdfTitle"
+          android:layout_width="wrap_content"
+          android:layout_height="wrap_content"
+          android:text="@string/static_pdf417_title"
+          android:textAppearance="@style/TextAppearance.MaterialComponents.Body1"
+          app:layout_constraintBottom_toTopOf="@+id/staticPdfDescription"
+          app:layout_constraintHorizontal_bias="0"
+          app:layout_constraintLeft_toLeftOf="parent"
+          app:layout_constraintRight_toLeftOf="@+id/staticPdfButton"
+          app:layout_constraintTop_toTopOf="parent" />
+        <TextView
+          android:id="@+id/staticPdfDescription"
+          android:layout_width="wrap_content"
+          android:layout_height="wrap_content"
+          android:text="@string/static_pdf417_description"
+          android:textAppearance="@style/TextAppearance.MaterialComponents.Caption"
+          app:layout_constraintBottom_toBottomOf="parent"
+          app:layout_constraintHorizontal_bias="0"
+          app:layout_constraintLeft_toLeftOf="parent"
+          app:layout_constraintRight_toLeftOf="@+id/staticPdfButton"
+          app:layout_constraintTop_toBottomOf="@+id/staticPdfTitle" />
+
+        <com.google.android.material.button.MaterialButton
+          android:id="@+id/staticPdfButton"
+          style="@style/Widget.MaterialComponents.Button.TextButton"
+          android:layout_width="wrap_content"
+          android:layout_height="wrap_content"
+          android:text="@string/try_it"
+          app:layout_constraintBottom_toBottomOf="parent"
+          app:layout_constraintHorizontal_bias="1"
+          app:layout_constraintLeft_toLeftOf="parent"
+          app:layout_constraintRight_toRightOf="parent"
+          app:layout_constraintTop_toTopOf="parent" />
+      </androidx.constraintlayout.widget.ConstraintLayout>
+
+      <!-- Error State -->
+      <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:padding="16dp"
+        android:minHeight="72dp">
+
+        <TextView
+          android:id="@+id/errorTitle"
+          android:layout_width="wrap_content"
+          android:layout_height="wrap_content"
+          android:text="@string/error_state"
+          android:textAppearance="@style/TextAppearance.MaterialComponents.Body1"
+          app:layout_constraintBottom_toTopOf="@+id/errorDescription"
+          app:layout_constraintHorizontal_bias="0"
+          app:layout_constraintLeft_toLeftOf="parent"
+          app:layout_constraintRight_toLeftOf="@+id/errorButton"
+          app:layout_constraintTop_toTopOf="parent" />
+        <TextView
+          android:id="@+id/errorDescription"
+          android:layout_width="wrap_content"
+          android:layout_height="wrap_content"
+          android:text="@string/error_state_desc"
+          android:textAppearance="@style/TextAppearance.MaterialComponents.Caption"
+          app:layout_constraintBottom_toBottomOf="parent"
+          app:layout_constraintHorizontal_bias="0"
+          app:layout_constraintLeft_toLeftOf="parent"
+          app:layout_constraintRight_toLeftOf="@+id/errorButton"
+          app:layout_constraintTop_toBottomOf="@+id/errorTitle" />
+
+        <com.google.android.material.button.MaterialButton
+          android:id="@+id/errorButton"
+          style="@style/Widget.MaterialComponents.Button.TextButton"
+          android:layout_width="wrap_content"
+          android:layout_height="wrap_content"
+          android:text="@string/try_it"
+          app:layout_constraintBottom_toBottomOf="parent"
+          app:layout_constraintHorizontal_bias="1"
+          app:layout_constraintLeft_toLeftOf="parent"
+          app:layout_constraintRight_toRightOf="parent"
+          app:layout_constraintTop_toTopOf="parent" />
+      </androidx.constraintlayout.widget.ConstraintLayout>
+    </LinearLayout>
+  </androidx.constraintlayout.widget.ConstraintLayout>
+</androidx.core.widget.NestedScrollView>
